@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_screen.dart';
-import 'screens/home_info_screen.dart';
+import './screens/main_login_page.dart';
 
 void main() {
-  runApp(HomeAuditApp());
+  runApp(const MyApp());
 }
 
-class HomeAuditApp extends StatelessWidget {
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Home Energy Audit',
-      theme: ThemeData.dark(), 
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
-      
       routes: {
-        '/': (context) => WelcomeScreen(),
-        '/home_info': (context) => HomeInfoScreen(),
+        '/': (context) => const LoginPage(),
+        
       },
     );
   }
