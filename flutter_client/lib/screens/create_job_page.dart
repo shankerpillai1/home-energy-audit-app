@@ -1,197 +1,305 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
+import 'package:file_picker/file_picker.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+
+class AuditResult {
+  final String jobId;
+  final String userName;
+  final String jobName;
+  final String mainCategory;
+  final String subCategory;
+  final Uint8List imageBytes;
+  final DateTime createdTime;
+  final String status;
+  final String? suggestion;
+  final String? notes;
+
+  AuditResult({
+    required this.jobId,
+    required this.userName,
+    required this.jobName,
+    required this.mainCategory,
+    required this.subCategory,
+    required this.imageBytes,
+    required this.createdTime,
+    required this.status,
+    this.suggestion,
+    this.notes,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'jobId': jobId,
+        'userName': userName,
+        'jobName': jobName,
+        'mainCategory': mainCategory,
+        'subCategory': subCategory,
+        'imageBytes': base64Encode(imageBytes),
+        'createdTime': createdTime.toIso8601String(),
+        'status': status,
+        'suggestion': suggestion,
+        'notes': notes,
+      };
+
+  static AuditResult fromJson(Map<String, dynamic> json) => AuditResult(
+        jobId: json['jobId'],
+        userName: json['userName'],
+        jobName: json['jobName'],
+        mainCategory: json['mainCategory'],
+        subCategory: json['subCategory'],
+        imageBytes: base64Decode(json['imageBytes']),
+        createdTime: DateTime.parse(json['createdTime']),
+        status: json['status'],
+        suggestion: json['suggestion'],
+        notes: json['notes'],
+      );
+}
 
 class CreateJobPage extends StatefulWidget {
   final String userName;
+
   const CreateJobPage({super.key, required this.userName});
 
   @override
-  State<CreateJobPage> createState() => _CreateJobPageState();
+  _CreateJobPageState createState() => _CreateJobPageState();
 }
 
 class _CreateJobPageState extends State<CreateJobPage> {
-  String selectedStage = 'Lead';
-  String jobType = 'Blank';
-  final TextEditingController dateController = TextEditingController();
-  final TextEditingController firstNameController = TextEditingController();
-  final TextEditingController lastNameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController address1Controller = TextEditingController();
-  final TextEditingController address2Controller = TextEditingController();
-  final TextEditingController cityController = TextEditingController();
-  final TextEditingController zipController = TextEditingController();
-  String selectedState = 'CA';
-  String homeStatus = 'Renter';
+  bool get isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
-  final List<String> stages = [
-    'Lead', 'Audit', 'Bid Proposed', 'Bid Approved', 'Retrofit In Progress',
-    'Retrofit Complete', 'QA', 'Uncategorized', 'Archived Won', 'Archived Lost'
-  ];
+  final Map<String, List<String>> categoryMap = {
+    'Building Envelope': ['Insulation', 'Windows & Doors', 'Air Leakage', 'Roof & Attic'],
+    'HVAC Systems': ['Heating Systems', 'Cooling Systems', 'Ductwork', 'Thermostats'],
+    'Lighting': ['Incandescent Bulbs', 'CFLs', 'LEDs', 'Natural Lighting'],
+    'Appliances & Electronics': ['Refrigerator', 'Dishwasher', 'Washer/Dryer', 'Television', 'Computers'],
+    'Water Heating': ['Tank Water Heaters', 'Tankless Water Heaters', 'Water Heater Insulation', 'Pipe Insulation'],
+    'Ventilation & Air Quality': ['Exhaust Fans', 'Air Purifiers', 'Humidity Control', 'Air Filters'],
+    'Renewable Energy Systems': ['Solar Panels', 'Wind Turbines', 'Geothermal Systems', 'Battery Storage'],
+  };
 
-  final List<String> states = ['CA', 'CO', 'NY', 'TX', 'FL'];
+  final _formKey = GlobalKey<FormState>();
+
+  String? jobName;
+  String? selectedMainCategory;
+  String? selectedSubCategory;
+  Uint8List? selectedImageBytes;
+
+  final List<AuditResult> auditResults = [];
 
   @override
   void initState() {
     super.initState();
-    dateController.addListener(() {
-      final text = dateController.text;
-      final formatted = _autoFormatDateTime(text);
-      if (formatted != text) {
-        dateController.value = dateController.value.copyWith(
-          text: formatted,
-          selection: TextSelection.collapsed(offset: formatted.length),
-        );
-      }
-    });
+    _loadJobs();
   }
 
-  String _autoFormatDateTime(String input) {
-    final buffer = StringBuffer();
-    final digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length >= 2) buffer.write(digits.substring(0, 2) + '/');
-    if (digits.length >= 4) buffer.write(digits.substring(2, 4) + '/');
-    if (digits.length >= 8) buffer.write(digits.substring(4, 8) + ', ');
-    if (digits.length >= 10) buffer.write(digits.substring(8, 10) + ':');
-    if (digits.length >= 12) buffer.write(digits.substring(10, 12) + ' ');
-    if (digits.length > 12) buffer.write(digits.substring(12));
-    return buffer.toString();
+  Future<void> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (result != null) {
+      setState(() {
+        selectedImageBytes = result.files.single.bytes;
+      });
+    }
+  }
+
+  Future<void> _saveJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jobListJson = auditResults.map((job) => job.toJson()).toList();
+    await prefs.setString('audit_jobs', jsonEncode(jobListJson));
+  }
+
+  Future<void> _loadJobs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jobsString = prefs.getString('audit_jobs');
+    if (jobsString != null) {
+      final List jobsJson = jsonDecode(jobsString);
+      setState(() {
+        auditResults.clear();
+        auditResults.addAll(jobsJson.map((json) => AuditResult.fromJson(json)).toList());
+      });
+    }
+  }
+
+  void _submitJob() async {
+    if (_formKey.currentState!.validate() && selectedMainCategory != null && selectedSubCategory != null && selectedImageBytes != null) {
+      _formKey.currentState!.save();
+
+      final newJob = AuditResult(
+        jobId: const Uuid().v4(),
+        userName: widget.userName,
+        jobName: jobName!,
+        mainCategory: selectedMainCategory!,
+        subCategory: selectedSubCategory!,
+        imageBytes: selectedImageBytes!,
+        createdTime: DateTime.now(),
+        status: 'Pending',
+        suggestion: null,
+        notes: null,
+      );
+
+      auditResults.add(newJob);
+      await _saveJobs();
+
+      setState(() {
+        jobName = null;
+        selectedMainCategory = null;
+        selectedSubCategory = null;
+        selectedImageBytes = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Job created successfully!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please complete all fields before submitting.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Create a Job - ${widget.userName}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
+    if (isMobile) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Create Job'),
+          backgroundColor: Colors.blueAccent,
+        ),
+        backgroundColor: Colors.white,
+        body: _buildCreateJobContent(context),
+      );
+    } else {
+      return _buildCreateJobContent(context);
+    }
+  }
 
-              _buildLabel('Stage:'),
-              _styledDropdown(selectedStage, stages, (value) {
-                setState(() {
-                  selectedStage = value!;
-                });
-              }),
-              const SizedBox(height: 16),
-
-              _buildLabel('Start With:'),
-              Row(
-                children: [
-                  _styledChip('Blank', jobType),
-                  const SizedBox(width: 8),
-                  _styledChip('Template', jobType),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Appointment Date & Time:'),
-              TextField(
-                controller: dateController,
-                keyboardType: TextInputType.datetime,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9:/, AMPMapm]')),
-                  LengthLimitingTextInputFormatter(16),
-                ],
-                decoration: const InputDecoration(hintText: 'MM/DD/YYYY, HH:MM AM/PM'),
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('First Name:'),
-              TextField(controller: firstNameController),
-              const SizedBox(height: 16),
-
-              _buildLabel('Last Name:'),
-              TextField(controller: lastNameController),
-              const SizedBox(height: 16),
-
-              _buildLabel('Email:'),
-              TextField(controller: emailController),
-              const SizedBox(height: 16),
-
-              _buildLabel('Phone:'),
-              TextField(controller: phoneController),
-              const SizedBox(height: 16),
-
-              _buildLabel('Address 1:'),
-              TextField(controller: address1Controller),
-              const SizedBox(height: 16),
-
-              _buildLabel('Address 2:'),
-              TextField(controller: address2Controller),
-              const SizedBox(height: 16),
-
-              _buildLabel('City:'),
-              TextField(controller: cityController),
-              const SizedBox(height: 16),
-
-              _buildLabel('State:'),
-              _styledDropdown(selectedState, states, (value) {
-                setState(() {
-                  selectedState = value!;
-                });
-              }),
-              const SizedBox(height: 16),
-
-              _buildLabel('Zip:'),
-              TextField(controller: zipController),
-              const SizedBox(height: 16),
-
-              _buildLabel('Rent or Own:'),
-              Row(
-                children: [
-                  _styledChip('Renter', homeStatus),
-                  const SizedBox(width: 8),
-                  _styledChip('Owner', homeStatus),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+  Widget _buildCreateJobContent(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 600),
+          padding: const EdgeInsets.all(32),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Step 1: Enter Job Name',
+                  style: TextStyle(fontSize: 24, color: Colors.white),
                 ),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/input');
-                },
-                child: const Text('Create new job'),
-              ),
-            ],
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Job Name',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  validator: (value) => (value == null || value.isEmpty) ? 'Please enter a job name' : null,
+                  onSaved: (value) => jobName = value,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Step 2: Select Main Category',
+                  style: TextStyle(fontSize: 24, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedMainCategory,
+                  hint: const Text('Select Main Category', style: TextStyle(color: Colors.white54)),
+                  dropdownColor: Colors.grey[850],
+                  decoration: const InputDecoration(
+                    labelText: 'Main Category',
+                    labelStyle: TextStyle(color: Colors.white),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  items: categoryMap.keys.map((String category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedMainCategory = value;
+                      selectedSubCategory = null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Step 3: Select Subcategory',
+                  style: TextStyle(fontSize: 24, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedSubCategory,
+                  hint: const Text('Select Subcategory', style: TextStyle(color: Colors.white54)),
+                  dropdownColor: Colors.grey[850],
+                  decoration: const InputDecoration(
+                    labelText: 'Subcategory',
+                    labelStyle: TextStyle(color: Colors.white),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  items: (selectedMainCategory != null)
+                      ? categoryMap[selectedMainCategory]!.map((String sub) {
+                          return DropdownMenuItem<String>(
+                            value: sub,
+                            child: Text(sub),
+                          );
+                        }).toList()
+                      : [],
+                  onChanged: (value) {
+                    setState(() {
+                      selectedSubCategory = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Step 4: Upload Image',
+                  style: TextStyle(fontSize: 24, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Upload Image'),
+                ),
+                if (selectedImageBytes != null) ...[
+                  const SizedBox(height: 20),
+                  Image.memory(
+                    selectedImageBytes!,
+                    height: 200,
+                  ),
+                ],
+                const SizedBox(height: 32),
+                Center(
+                  child: ElevatedButton(
+                    onPressed: _submitJob,
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    child: const Text('Create Job'),
+                  ),
+                )
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildLabel(String text) => Text(text, style: const TextStyle(fontWeight: FontWeight.bold));
-
-  Widget _styledDropdown(String value, List<String> items, void Function(String?) onChanged) {
-    return DropdownButton<String>(
-      value: value,
-      borderRadius: BorderRadius.circular(6),
-      dropdownColor: Colors.white,
-      style: const TextStyle(color: Colors.black),
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _styledChip(String label, String groupValue) {
-    final bool selected = label == groupValue;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => setState(() => homeStatus = label),
-      selectedColor: Colors.blue,
-      backgroundColor: Colors.grey[200],
-      labelStyle: TextStyle(color: selected ? Colors.white : Colors.black),
     );
   }
 }

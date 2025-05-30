@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import './main_login_page.dart';
-import './jobs_page.dart';
-import './input_page.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_client/screens/home_page.dart';
+import 'package:flutter_client/screens/history_page.dart';
+import 'package:flutter_client/screens/profile_page.dart';
+import 'package:flutter_client/screens/login_page.dart';
+import 'package:flutter_client/screens/create_job_page.dart';
+
 class DashboardPage extends StatefulWidget {
   final String userName;
   const DashboardPage({super.key, required this.userName});
@@ -11,90 +16,213 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  int selectedIndex = 0;
+  String currentRoute = '/dashboard/home';
+  String activeButton = '/dashboard/home';
+  bool showSettingsMenu = false;
 
-  final List<String> pageTitles = [
-    'Jobs', 'Templates', 'Input', 'Refine', 'Finance', 'Report', 'Model It', 'Settings', 'Support', 'Logout'
-  ];
+  // Method to navigate to a different page
+  void _navigate(String route) {
+    setState(() {
+      currentRoute = route;
+      activeButton = route;
+      showSettingsMenu = false;
+    });
+  }
 
-  final List<IconData> pageIcons = [
-    Icons.work, Icons.view_module, Icons.input, Icons.build, Icons.attach_money, Icons.receipt, Icons.architecture, Icons.settings, Icons.support, Icons.exit_to_app
-  ];
+  void _toggleSettingsMenu() {
+    setState(() {
+      showSettingsMenu = !showSettingsMenu;
+      activeButton = 'settings';
+    });
+  }
+
+  // Handle user logout and clear saved credentials
+  void _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('isLoggedIn');
+    await prefs.remove('userName');
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
+  }
+
+  // Returns the correct widget based on currentRoute
+  Widget _getPage() {
+    switch (currentRoute) {
+      case '/dashboard/history':
+        return HistoryPage(userName: widget.userName);
+      case '/dashboard/profile':
+        return ProfilePage(userName: widget.userName, showLogout: true);
+      case '/dashboard/create':
+        return CreateJobPage(userName: widget.userName);
+      case '/dashboard/home':
+      default:
+        return HomePage(userName: widget.userName, onNavigate: _navigate);
+    }
+  }
+
+  // Determine if the platform is mobile
+  bool get isMobile {
+    final width = MediaQuery.of(context).size.width;
+    final platform = defaultTargetPlatform;
+    return width < 600 || platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Row(
-        children: [
-          Container(
-            width: 64,
-            color: const Color(0xFF1E1E1E),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  children: List.generate(7, (index) => _buildSidebarItem(index, pageIcons[index], pageTitles[index])),
-                ),
-                Column(
-                  children: List.generate(3, (index) => _buildSidebarItem(index + 7, pageIcons[index + 7], pageTitles[index + 7])),
-                )
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Scaffold(
+              body: isMobile
+                  ? Column(
+                      children: [
+                        Expanded(child: _getPage()),
+                        BottomNavigationBar(
+                          currentIndex: _getMobileIndex(),
+                          onTap: _onMobileTap,
+                          items: const [
+                            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+                            BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+                            BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          color: const Color(0xFF1E1E1E),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                children: [
+                                  _buildSidebarIcon(Icons.home, '/dashboard/home', 'Home'),
+                                  _buildSidebarIcon(Icons.history, '/dashboard/history', 'History'),
+                                ],
+                              ),
+                              Column(
+                                children: [
+                                  _buildSettingsIcon(Icons.settings, 'Settings'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(child: _getPage()),
+                      ],
+                    ),
             ),
-          ),
-          Expanded(
-            child: _buildMainContent(),
-          ),
-        ],
+            if (!isMobile && showSettingsMenu)
+              Positioned(
+                left: 64,
+                bottom: 0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 140,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2C2C2C),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            _navigate('/dashboard/profile');
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16),
+                            child: Text('Profile', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                        const Divider(color: Colors.grey, height: 1),
+                        GestureDetector(
+                          onTap: _logout,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16),
+                            child: Text('Logout', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  int _getMobileIndex() {
+    switch (activeButton) {
+      case '/dashboard/home':
+        return 0;
+      case '/dashboard/history':
+        return 1;
+      case '/dashboard/profile':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  void _onMobileTap(int index) {
+    switch (index) {
+      case 0:
+        _navigate('/dashboard/home');
+        break;
+      case 1:
+        _navigate('/dashboard/history');
+        break;
+      case 2:
+        _navigate('/dashboard/profile');
+        break;
+    }
+  }
+
+  // Sidebar button builder
+  Widget _buildSidebarIcon(IconData icon, String route, String label) {
+    final bool isActive = activeButton == route;
+    return GestureDetector(
+      onTap: () => _navigate(route),
+      child: Container(
+        height: 72,
+        width: 64,
+        color: isActive ? Colors.blue : Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildMainContent() {
-    if (selectedIndex == 0) {
-      return JobsPage(userName: widget.userName);
-    }else if (selectedIndex == 2) {
-      return InputPage(userName: widget.userName);
-
-
-    }else if (selectedIndex == 9) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-        );
-      });
-      return const SizedBox.shrink();
-    } else {
-      return Center(
-        child: Text(
-          '${pageTitles[selectedIndex]} Page',
-          style: const TextStyle(fontSize: 24),
-        ),
-      );
-    }
-  }
-
-  Widget _buildSidebarItem(int index, IconData icon, String label) {
-    final bool isSelected = selectedIndex == index;
-    final Color iconColor = (index == 9) ? Colors.red : Colors.white;
-
+  // Settings button builder
+  Widget _buildSettingsIcon(IconData icon, String label) {
+    final bool isActive = activeButton == 'settings';
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedIndex = index;
-        });
-      },
+      onTap: _toggleSettingsMenu,
       child: Container(
         height: 72,
-        width: double.infinity,
-        color: isSelected ? Colors.blue : Colors.transparent,
+        width: 64,
+        color: isActive ? Colors.blue : Colors.transparent,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: iconColor, size: 20),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(color: iconColor, fontSize: 9), textAlign: TextAlign.center),
+            Icon(icon, color: Colors.white),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)),
           ],
         ),
       ),
