@@ -27,6 +27,51 @@ class _HomePageState extends State<HomePage> {
   Set<int> selectedJobs = {};
   TextEditingController searchController = TextEditingController();
 
+  final List<Map<String, String>> mainCategories = [
+    {
+      'title': 'Device End-Use',
+      'description': 'Appliances like air conditioners, refrigerators.',
+      'examples': 'AC, TV, Refrigerator'
+    },
+    {
+      'title': 'Building Envelope',
+      'description': 'Walls, windows, doors, insulation.',
+      'examples': 'Insulation, Low-E Windows'
+    },
+    {
+      'title': 'Air Leakage / Infiltration',
+      'description': 'Gaps and cracks allowing air flow.',
+      'examples': 'Door Gaps, Window Cracks'
+    },
+    {
+      'title': 'Indoor Air Quality & Ventilation',
+      'description': 'Ventilation systems, air purifiers.',
+      'examples': 'HRV, ERV, Air Purifier'
+    },
+    {
+      'title': 'Renewable & Alternative Energy Systems',
+      'description': 'Solar, geothermal, wind energy systems.',
+      'examples': 'Solar PV, Wind Turbine'
+    },
+    {
+      'title': 'Water Use & Efficiency',
+      'description': 'Water heaters, efficient fixtures.',
+      'examples': 'Low-flow Showerhead, Tankless Heater'
+    },
+    {
+      'title': 'Occupant Behavior & Usage Patterns',
+      'description': 'Energy use habits and schedules.',
+      'examples': 'Smart Thermostat, Usage Monitoring'
+    },
+    {
+      'title': 'Health & Safety',
+      'description': 'Smoke alarms, CO detectors.',
+      'examples': 'Smoke Detector, CO Alarm'
+    },
+  ];
+
+  bool showCategories = true;
+
   @override
   void initState() {
     super.initState();
@@ -43,116 +88,6 @@ class _HomePageState extends State<HomePage> {
         jobs.sort((a, b) => DateTime.parse(b['createdTime']).compareTo(DateTime.parse(a['createdTime'])));
         filteredJobs = List.from(jobs);
       });
-    }
-  }
-
-   void _showJobDetails(Map<String, dynamic> job) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.5),
-      builder: (context) {
-        return Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.6,
-            height: MediaQuery.of(context).size.height * 0.8,
-            padding: const EdgeInsets.all(20.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          job['jobName'] ?? '',
-                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      Text(
-                        job['mainCategory'] ?? '',
-                        style: const TextStyle(color: Colors.white70, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  if (job['imageBytes'] != null)
-                    Container(
-                      width: double.infinity,
-                      height: MediaQuery.of(context).size.height * 0.4,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        image: DecorationImage(
-                          image: MemoryImage(base64Decode(job['imageBytes'])),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Sub Category: ${job['subCategory'] ?? ''}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Suggestion:',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    job['feedback'] ?? 'No suggestion yet',
-                    style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteSelectedJobs() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      final toDelete = selectedJobs.map((i) => filteredJobs[i]['jobId']).toSet();
-      jobs.removeWhere((job) => toDelete.contains(job['jobId']));
-      filteredJobs = List.from(jobs);
-      selectedJobs.clear();
-      selectAll = false;
-    });
-    final jobListJson = jobs.map((job) => job).toList();
-    await prefs.setString('audit_jobs', jsonEncode(jobListJson));
-    Toast.show(context, 'Deleted Successfully!');
-  }
-
-  void _exportSelectedJobs() {
-    if (selectedJobs.isEmpty) {
-      Toast.show(context, 'No jobs selected for export!');
-      return;
-    }
-    final selected = selectedJobs.map((i) => filteredJobs[i]).toList();
-    final jsonStr = jsonEncode(selected);
-
-    if (kIsWeb) {
-      final bytes = utf8.encode(jsonStr);
-      final blob = html.Blob([bytes]);
-      final now = DateTime.now();
-      final timestamp = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
-      final fileName = "${widget.userName}_exported_jobs_$timestamp.json";
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute("download", fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      Toast.show(context, 'Export only supported on Web for now.');
     }
   }
 
@@ -173,7 +108,6 @@ class _HomePageState extends State<HomePage> {
         final List importedJobs = jsonDecode(content);
         setState(() {
           jobs.addAll(importedJobs.cast<Map<String, dynamic>>());
-          jobs.sort((a, b) => DateTime.parse(b['createdTime']).compareTo(DateTime.parse(a['createdTime'])));
           filteredJobs = List.from(jobs);
         });
         final prefs = await SharedPreferences.getInstance();
@@ -183,13 +117,50 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+
   void _toggleSelectAll(bool? value) {
     setState(() {
       selectAll = value ?? false;
       if (selectAll) {
-        selectedJobs = {for (int i = 0; i < filteredJobs.length; i++) i};
+        selectedJobs = Set<int>.from(List.generate(filteredJobs.length, (index) => index));
       } else {
         selectedJobs.clear();
+      }
+    });
+  }
+
+  void _deleteSelectedJobs() async {
+    setState(() {
+      final jobsToDelete = selectedJobs.map((i) => filteredJobs[i]).toList();
+      jobs.removeWhere((job) => jobsToDelete.contains(job));
+      filteredJobs.removeWhere((job) => jobsToDelete.contains(job));
+      selectedJobs.clear();
+      selectAll = false;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('audit_jobs', jsonEncode(jobs));
+  }
+
+  void _exportSelectedJobs() {
+    final selected = selectedJobs.map((i) => filteredJobs[i]).toList();
+    final jsonStr = jsonEncode(selected);
+    final blob = html.Blob([jsonStr]);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'selected_jobs.json')
+      ..click();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  void _searchJobs(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        filteredJobs = List.from(jobs);
+      } else {
+        filteredJobs = jobs.where((job) {
+          final name = job['jobName']?.toString().toLowerCase() ?? '';
+          return name.contains(query.toLowerCase());
+        }).toList();
       }
     });
   }
@@ -201,146 +172,263 @@ class _HomePageState extends State<HomePage> {
       } else {
         selectedJobs.add(index);
       }
+      selectAll = selectedJobs.length == filteredJobs.length;
     });
   }
 
-  void _searchJobs(String query) {
-    setState(() {
-      filteredJobs = jobs
-          .where((job) => job['jobName']!.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-      selectedJobs.clear();
-      selectAll = false;
-    });
+  void _showJobDetails(Map<String, dynamic> job) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(job['jobName'] ?? ''),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Job ID: ${job['jobId'] ?? ''}'),
+                const SizedBox(height: 10),
+                Text('Created: ${job['createdTime'] != null ? DateTime.parse(job['createdTime']).toLocal().toString().substring(0, 19) : ''}'),
+                const SizedBox(height: 10),
+                Text('Details: ${jsonEncode(job)}'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
-
-  
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
       body: Column(
         children: [
           Container(
-            height: screenHeight * 0.2,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            height: showCategories ? MediaQuery.of(context).size.height * 0.6 : 80,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
               children: [
-                ElevatedButton(
-                  onPressed: () => widget.onNavigate('/dashboard/create'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2C2C2C),
-                    minimumSize: const Size(120, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: const Text('New Job', style: TextStyle(fontSize: 16, color: Colors.white)),
-                ),
-                ElevatedButton(
-                  onPressed: _importJobs,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2C2C2C),
-                    minimumSize: const Size(120, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: const Text('Import Jobs', style: TextStyle(fontSize: 16, color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Checkbox(
-                  value: selectAll,
-                  onChanged: _toggleSelectAll,
-                  activeColor: Colors.blueAccent,
-                ),
-                const SizedBox(width: 8),
-                const Text('Select All', style: TextStyle(color: Colors.white, fontSize: 18)),
-                const SizedBox(width: 24),
-                ElevatedButton(
-                  onPressed: selectedJobs.isNotEmpty ? _deleteSelectedJobs : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orangeAccent,
-                    minimumSize: const Size(140, 40),
-                  ),
-                  child: const Text('Delete Selected', style: TextStyle(fontSize: 16)),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: selectedJobs.isNotEmpty ? _exportSelectedJobs : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: const Size(140, 40),
-                  ),
-                  child: const Text('Export Selected', style: TextStyle(fontSize: 16)),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: SizedBox(
-                    width: 250,
-                    child: TextField(
-                      controller: searchController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Search Jobs',
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                        filled: true,
-                        fillColor: const Color(0xFF2C2C2C),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                          borderSide: BorderSide.none,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => widget.onNavigate('/dashboard/create'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2C2C2C),
+                            minimumSize: const Size(120, 40),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero,
+                            ),
+                          ),
+                          child: const Text('New Job', style: TextStyle(fontSize: 14, color: Colors.white)),
                         ),
-                      ),
-                      onChanged: _searchJobs,
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _importJobs,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2C2C2C),
+                            minimumSize: const Size(120, 40),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero,
+                            ),
+                          ),
+                          child: const Text('Import Jobs', style: TextStyle(fontSize: 14, color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Text('Expand/Collapse Categories', style: TextStyle(color: Colors.white, fontSize: 14)),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              showCategories = !showCategories;
+                            });
+                          },
+                          icon: Icon(
+                            showCategories ? Icons.expand_less : Icons.expand_more,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (showCategories) ...[
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        double maxCardWidth = 300;
+                        int crossAxisCount = (constraints.maxWidth / maxCardWidth).floor().clamp(2, 4);
+                        double cardWidth = constraints.maxWidth / crossAxisCount - 12;
+                        double titleFontSize = (cardWidth * 0.065).clamp(9.0, 14.0);
+                        double descFontSize = (cardWidth * 0.055).clamp(8.0, 13.0);
+                        double exampleFontSize = (cardWidth * 0.045).clamp(8.0, 13.0);
+                        return GridView.builder(
+                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 440,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.95,
+                          ),
+                          itemCount: mainCategories.length,
+                          itemBuilder: (context, index) {
+                            final category = mainCategories[index];
+                            return Card(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16.0),
+                              ),
+                              color: const Color(0xFF2C2C2C),
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      category['title']!.toUpperCase(),
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: titleFontSize,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      category['description']!,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: descFontSize,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      category['examples']!,
+                                      style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: exampleFontSize,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
+
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredJobs.length,
-              itemBuilder: (context, index) {
-                final job = filteredJobs[index];
-                return ListTile(
-                  onTap: () => _showJobDetails(job),
-                  leading: Checkbox(
-                    value: selectedJobs.contains(index),
-                    onChanged: (_) => _toggleSelectJob(index),
-                    activeColor: Colors.blueAccent,
-                  ),
-                  title: Text(
-                    job['jobName'] ?? '',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              children: [
+                Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
                     children: [
-                      Text(
-                        'Created: ${job['createdTime'] != null ? DateTime.parse(job['createdTime']).toLocal().toString().substring(0, 19) : ''}',
-                        style: const TextStyle(color: Colors.white70),
+                      Checkbox(
+                        value: selectAll,
+                        onChanged: _toggleSelectAll,
+                        activeColor: Colors.blueAccent,
                       ),
-                      Text(
-                        'Job ID: ${job['jobId'] ?? ''}',
-                        style: const TextStyle(color: Colors.white38),
+                      const SizedBox(width: 8),
+                      const Text('Select All', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      const SizedBox(width: 24),
+                      ElevatedButton(
+                        onPressed: selectedJobs.isNotEmpty ? _deleteSelectedJobs : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          minimumSize: const Size(120, 36),
+                        ),
+                        child: const Text('Delete Selected', style: TextStyle(fontSize: 14)),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: selectedJobs.isNotEmpty ? _exportSelectedJobs : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          minimumSize: const Size(120, 36),
+                        ),
+                        child: const Text('Export Selected', style: TextStyle(fontSize: 14)),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: SizedBox(
+                          width: 250,
+                          child: TextField(
+                            controller: searchController,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: 'Search Jobs',
+                              hintStyle: const TextStyle(color: Colors.white54),
+                              prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 18),
+                              filled: true,
+                              fillColor: const Color(0xFF2C2C2C),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8.0),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onChanged: _searchJobs,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                );
-              },
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filteredJobs.length,
+                    itemBuilder: (context, index) {
+                      final job = filteredJobs[index];
+                      return ListTile(
+                        onTap: () => _showJobDetails(job),
+                        leading: Checkbox(
+                          value: selectedJobs.contains(index),
+                          onChanged: (_) => _toggleSelectJob(index),
+                          activeColor: Colors.blueAccent,
+                        ),
+                        title: Text(
+                          job['jobName'] ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Created: ${job['createdTime'] != null ? DateTime.parse(job['createdTime']).toLocal().toString().substring(0, 19) : ''}',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                            Text(
+                              'Job ID: ${job['jobId'] ?? ''}',
+                              style: const TextStyle(color: Colors.white38, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],

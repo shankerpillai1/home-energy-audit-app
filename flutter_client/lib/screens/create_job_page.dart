@@ -1,303 +1,194 @@
+// create_job_page.dart (final version: Dropdown + Autocomplete with default list)
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:uuid/uuid.dart';
-import 'dart:typed_data';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
-class AuditResult {
-  final String jobId;
-  final String userName;
-  final String jobName;
-  final String mainCategory;
-  final String subCategory;
-  final Uint8List imageBytes;
-  final DateTime createdTime;
-  final String status;
-  final String? suggestion;
-  final String? notes;
-
-  AuditResult({
-    required this.jobId,
-    required this.userName,
-    required this.jobName,
-    required this.mainCategory,
-    required this.subCategory,
-    required this.imageBytes,
-    required this.createdTime,
-    required this.status,
-    this.suggestion,
-    this.notes,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'jobId': jobId,
-        'userName': userName,
-        'jobName': jobName,
-        'mainCategory': mainCategory,
-        'subCategory': subCategory,
-        'imageBytes': base64Encode(imageBytes),
-        'createdTime': createdTime.toIso8601String(),
-        'status': status,
-        'suggestion': suggestion,
-        'notes': notes,
-      };
-
-  static AuditResult fromJson(Map<String, dynamic> json) => AuditResult(
-        jobId: json['jobId'],
-        userName: json['userName'],
-        jobName: json['jobName'],
-        mainCategory: json['mainCategory'],
-        subCategory: json['subCategory'],
-        imageBytes: base64Decode(json['imageBytes']),
-        createdTime: DateTime.parse(json['createdTime']),
-        status: json['status'],
-        suggestion: json['suggestion'],
-        notes: json['notes'],
-      );
-}
 
 class CreateJobPage extends StatefulWidget {
   final String userName;
 
-  const CreateJobPage({super.key, required this.userName});
+  const CreateJobPage({Key? key, required this.userName}) : super(key: key);
 
   @override
   _CreateJobPageState createState() => _CreateJobPageState();
 }
 
 class _CreateJobPageState extends State<CreateJobPage> {
-  bool get isMobile =>
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
+  String? selectedCategory;
+  String? selectedSubcategory;
+  File? selectedImage;
+  final TextEditingController subcategoryController = TextEditingController();
 
   final Map<String, List<String>> categoryMap = {
-    'Building Envelope': ['Insulation', 'Windows & Doors', 'Air Leakage', 'Roof & Attic'],
-    'HVAC Systems': ['Heating Systems', 'Cooling Systems', 'Ductwork', 'Thermostats'],
-    'Lighting': ['Incandescent Bulbs', 'CFLs', 'LEDs', 'Natural Lighting'],
-    'Appliances & Electronics': ['Refrigerator', 'Dishwasher', 'Washer/Dryer', 'Television', 'Computers'],
-    'Water Heating': ['Tank Water Heaters', 'Tankless Water Heaters', 'Water Heater Insulation', 'Pipe Insulation'],
-    'Ventilation & Air Quality': ['Exhaust Fans', 'Air Purifiers', 'Humidity Control', 'Air Filters'],
-    'Renewable Energy Systems': ['Solar Panels', 'Wind Turbines', 'Geothermal Systems', 'Battery Storage'],
+    'Device End-Use': [
+      'Gas Furnace', 'Heat Pump', 'Radiant Heating', 'Electric Heater',
+      'Central AC', 'Split AC', 'Window AC',
+      'Storage Water Heater', 'Tankless Water Heater', 'Solar Water Heater',
+      'Refrigerator', 'Washing Machine', 'Dishwasher', 'Electric Oven',
+      'TV', 'Desktop Computer', 'Microwave', 'Coffee Maker', 'LED Bulb',
+      'Dimmers', 'Motion Sensors'
+    ],
+    'Building Envelope': [
+      'Wall Insulation', 'Roof Insulation', 'Window - Double Pane',
+      'Window - Low-E Glass', 'Weatherstripping', 'Caulking',
+      'Siding Material', 'Thermal Bridges'
+    ],
+    'Air Leakage / Infiltration': [
+      'Door Threshold Gaps', 'Window Frame Gaps', 'Duct Penetration Gaps',
+      'Wall Cracks', 'Attic Leaks'
+    ],
+    'Indoor Air Quality & Ventilation': [
+      'Exhaust Fans', 'Heat Recovery Ventilator',
+      'Air Purifiers', 'HVAC Filters', 'CO2 Sensors', 'PM Monitors'
+    ],
+    'Renewable & Alternative Energy Systems': [
+      'Solar PV', 'Solar Thermal', 'Geothermal Heat Pump', 'Wind Turbine', 'EV Charger'
+    ],
+    'Water Use & Efficiency': [
+      'Hot Water Pipe Insulation', 'Low-Flow Showerhead', 'Efficient Toilet',
+      'Leak Detection', 'Outdoor Irrigation'
+    ],
+    'Occupant Behavior & Usage Patterns': [
+      'Thermostat Settings', 'Peak/Off-Peak Usage', 'Lighting Practices',
+      'Standby Loads'
+    ],
+    'Health & Safety': [
+      'Combustion Safety', 'Smoke/CO Alarms', 'Electrical Panels', 'Gas Leak Detection'
+    ],
+    'Other': ['Other']
   };
 
-  final _formKey = GlobalKey<FormState>();
+  List<String> getSubcategories(String? category) {
+    if (category != null && categoryMap.containsKey(category)) {
+      return categoryMap[category]!;
+    }
+    return [];
+  }
 
-  String? jobName;
-  String? selectedMainCategory;
-  String? selectedSubCategory;
-  Uint8List? selectedImageBytes;
+  Future<void> pickImage() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
 
-  final List<AuditResult> auditResults = [];
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        selectedImage = File(result.files.single.path!);
+      });
+    }
+  }
+
+  void submitJob() {
+    if (selectedImage == null || selectedCategory == null || subcategoryController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please complete all required fields.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Job Created Successfully!')),
+    );
+
+    setState(() {
+      selectedImage = null;
+      selectedCategory = null;
+      subcategoryController.clear();
+    });
+  }
 
   @override
-  void initState() {
-    super.initState();
-    _loadJobs();
-  }
-
-  Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result != null) {
-      setState(() {
-        selectedImageBytes = result.files.single.bytes;
-      });
-    }
-  }
-
-  Future<void> _saveJobs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jobListJson = auditResults.map((job) => job.toJson()).toList();
-    await prefs.setString('audit_jobs', jsonEncode(jobListJson));
-  }
-
-  Future<void> _loadJobs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jobsString = prefs.getString('audit_jobs');
-    if (jobsString != null) {
-      final List jobsJson = jsonDecode(jobsString);
-      setState(() {
-        auditResults.clear();
-        auditResults.addAll(jobsJson.map((json) => AuditResult.fromJson(json)).toList());
-      });
-    }
-  }
-
-  void _submitJob() async {
-    if (_formKey.currentState!.validate() && selectedMainCategory != null && selectedSubCategory != null && selectedImageBytes != null) {
-      _formKey.currentState!.save();
-
-      final newJob = AuditResult(
-        jobId: const Uuid().v4(),
-        userName: widget.userName,
-        jobName: jobName!,
-        mainCategory: selectedMainCategory!,
-        subCategory: selectedSubCategory!,
-        imageBytes: selectedImageBytes!,
-        createdTime: DateTime.now(),
-        status: 'Pending',
-        suggestion: null,
-        notes: null,
-      );
-
-      auditResults.add(newJob);
-      await _saveJobs();
-
-      setState(() {
-        jobName = null;
-        selectedMainCategory = null;
-        selectedSubCategory = null;
-        selectedImageBytes = null;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job created successfully!')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields before submitting.')),
-      );
-    }
+  void dispose() {
+    subcategoryController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isMobile) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Create Job'),
-          backgroundColor: Colors.blueAccent,
-        ),
-        backgroundColor: Colors.white,
-        body: _buildCreateJobContent(context),
-      );
-    } else {
-      return _buildCreateJobContent(context);
-    }
-  }
-
-  Widget _buildCreateJobContent(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600),
-          padding: const EdgeInsets.all(32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Step 1: Enter Job Name',
-                  style: TextStyle(fontSize: 24, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Job Name',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white70),
-                    ),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Please enter a job name' : null,
-                  onSaved: (value) => jobName = value,
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Step 2: Select Main Category',
-                  style: TextStyle(fontSize: 24, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMainCategory,
-                  hint: const Text('Select Main Category', style: TextStyle(color: Colors.white54)),
-                  dropdownColor: Colors.grey[850],
-                  decoration: const InputDecoration(
-                    labelText: 'Main Category',
-                    labelStyle: TextStyle(color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white70),
-                    ),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                  items: categoryMap.keys.map((String category) {
-                    return DropdownMenuItem<String>(
-                      value: category,
-                      child: Text(category),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedMainCategory = value;
-                      selectedSubCategory = null;
-                    });
-                  },
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Step 3: Select Subcategory',
-                  style: TextStyle(fontSize: 24, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedSubCategory,
-                  hint: const Text('Select Subcategory', style: TextStyle(color: Colors.white54)),
-                  dropdownColor: Colors.grey[850],
-                  decoration: const InputDecoration(
-                    labelText: 'Subcategory',
-                    labelStyle: TextStyle(color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white70),
-                    ),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                  items: (selectedMainCategory != null)
-                      ? categoryMap[selectedMainCategory]!.map((String sub) {
-                          return DropdownMenuItem<String>(
-                            value: sub,
-                            child: Text(sub),
-                          );
-                        }).toList()
-                      : [],
-                  onChanged: (value) {
-                    setState(() {
-                      selectedSubCategory = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Step 4: Upload Image',
-                  style: TextStyle(fontSize: 24, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.upload),
-                  label: const Text('Upload Image'),
-                ),
-                if (selectedImageBytes != null) ...[
-                  const SizedBox(height: 20),
-                  Image.memory(
-                    selectedImageBytes!,
-                    height: 200,
-                  ),
-                ],
-                const SizedBox(height: 32),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: _submitJob,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    child: const Text('Create Job'),
-                  ),
-                )
-              ],
+    return Scaffold(
+      appBar: AppBar(title: Text('Create New Job')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Upload Image', style: TextStyle(fontSize: 18)),
+            SizedBox(height: 10),
+            Center(
+              child: selectedImage == null
+                  ? ElevatedButton(
+                      onPressed: pickImage,
+                      child: Text('Pick Image'),
+                    )
+                  : Image.file(selectedImage!, height: 200),
             ),
-          ),
+            SizedBox(height: 20),
+
+            // Main Category: Only selection
+            DropdownSearch<String>(
+              popupProps: PopupProps.menu(
+                showSearchBox: false,
+              ),
+              items: categoryMap.keys.toList(),
+              dropdownDecoratorProps: DropDownDecoratorProps(
+                dropdownSearchDecoration: InputDecoration(
+                  labelText: "Select Main Category",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              selectedItem: selectedCategory,
+              onChanged: (value) {
+                setState(() {
+                  selectedCategory = value;
+                  subcategoryController.clear();
+                });
+              },
+            ),
+            SizedBox(height: 20),
+
+            // Subcategory: Autocomplete input with full list default
+            if (selectedCategory != null)
+              Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  final options = getSubcategories(selectedCategory);
+                  if (textEditingValue.text.isEmpty) {
+                    return options;
+                  }
+                  return options.where((String option) {
+                    return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                  });
+                },
+                onSelected: (String selection) {
+                  setState(() {
+                    subcategoryController.text = selection;
+                  });
+                },
+                fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                  controller.text = subcategoryController.text;
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    onEditingComplete: onEditingComplete,
+                    decoration: InputDecoration(
+                      labelText: "Subcategory (select or type)",
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        subcategoryController.text = value;
+                      });
+                    },
+                  );
+                },
+              ),
+
+            SizedBox(height: 30),
+
+            Center(
+              child: ElevatedButton(
+                onPressed: submitJob,
+                child: Text('Create Job'),
+              ),
+            ),
+          ],
         ),
       ),
     );
