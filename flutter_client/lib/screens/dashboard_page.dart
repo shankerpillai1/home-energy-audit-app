@@ -54,10 +54,16 @@ class _DashboardPageState extends State<DashboardPage> {
       case '/dashboard/profile':
         return ProfilePage(userName: widget.userName, showLogout: true);
       case '/dashboard/create':
-        return CreateJobPage(userName: widget.userName);
+        return CreateJobPage(
+          userName: widget.userName,
+          onBack: () => _navigate('/dashboard/home'), 
+        );
       case '/dashboard/home':
       default:
-        return HomePage(userName: widget.userName, onNavigate: _navigate);
+        return HomePage(
+          userName: widget.userName,
+          onNavigate: _navigate, 
+        );
     }
   }
 
