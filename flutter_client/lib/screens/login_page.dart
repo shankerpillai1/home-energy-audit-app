@@ -71,6 +71,7 @@ class _LoginPageState extends State<LoginPage> {
         _loggedInUsername = match.value['username'];
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setBool('isFirstLogin', true); 
         await prefs.setString('userName', _loggedInUsername ?? 'User');
 
         Navigator.pushReplacementNamed(

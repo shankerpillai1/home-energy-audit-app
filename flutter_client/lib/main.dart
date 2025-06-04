@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_client/screens/login_page.dart';
 import 'package:flutter_client/screens/dashboard_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_client/screens/tutorial_page.dart'; // 加这个导入
 
 void main() {
   runApp(const MyApp());
@@ -18,6 +19,7 @@ class _MyAppState extends State<MyApp> {
   bool _isLoggedIn = false;
   String _userName = 'User';
   bool _loading = true;
+  bool _showTutorial = false;
 
   @override
   void initState() {
@@ -27,9 +29,11 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
+    final isFirstLogin = prefs.getBool('isFirstLogin') ?? true;
     setState(() {
       _isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
       _userName = prefs.getString('userName') ?? 'User';
+      _showTutorial = isFirstLogin;
       _loading = false;
     });
   }
@@ -57,10 +61,22 @@ class _MyAppState extends State<MyApp> {
         textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.white)),
       ),
       debugShowCheckedModeBanner: false,
-      home: _isLoggedIn ? DashboardPage(userName: _userName) : const LoginPage(),
+      home: _isLoggedIn
+      ? (_showTutorial
+          ? TutorialPage(
+              onGetStarted: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('isFirstLogin', false);
+                setState(() {
+                  _showTutorial = false;
+                });
+              },
+            )
+          : DashboardPage(userName: _userName))
+      : const LoginPage(),
+
       onGenerateRoute: (settings) {
         final args = settings.arguments;
-
         switch (settings.name) {
           case '/dashboard/home':
             final userName = args is String ? args : _userName;

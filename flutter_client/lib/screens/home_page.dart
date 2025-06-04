@@ -398,17 +398,20 @@ Widget _buildJobListSection() {
 
 
   Future<void> _loadJobs() async {
-  final prefs = await SharedPreferences.getInstance();
-  final jobsString = prefs.getString('audit_jobs');
-  if (jobsString != null) {
-    final List jobsJson = jsonDecode(jobsString);
-    setState(() {
-      jobs = jobsJson.map((json) => AuditResult.fromJson(json)).toList();
-      jobs.sort((a, b) => DateTime.parse(b.createdTime).compareTo(DateTime.parse(a.createdTime)));
-      filteredJobs = List.from(jobs);
-    });
+    final prefs = await SharedPreferences.getInstance();
+    final jobsString = prefs.getString('audit_jobs');
+    if (jobsString != null) {
+      final List jobsJson = jsonDecode(jobsString);
+      setState(() {
+        jobs = jobsJson
+            .map((json) => AuditResult.fromJson(json))
+            .where((job) => job.userName == widget.userName) // 只要自己的
+            .toList();
+        jobs.sort((a, b) => DateTime.parse(b.createdTime).compareTo(DateTime.parse(a.createdTime)));
+        filteredJobs = List.from(jobs);
+      });
+    }
   }
-}
 
 
   void _importJobs() async {
@@ -601,4 +604,6 @@ void _filterJobs(String category) {
 }
 
 }
+
+
 
