@@ -95,8 +95,41 @@ Widget build(BuildContext context) {
 }
 
 Widget _buildCategorySection() {
+  final List<Map<String, dynamic>> homeCards = [
+    {
+      'icon': Icons.flash_on,
+      'title': 'Quick Start',
+      'description': 'Quickly begin a new energy audit task.',
+      'onTap': () => widget.onNavigate('/dashboard/create'),
+    },
+    {
+      'icon': Icons.book,
+      'title': 'Audit Guide',
+      'description': 'Learn how to perform a home energy audit.',
+      'onTap': () {
+        Toast.show(context, 'Audit Guide is under development.');
+      },
+    },
+    {
+      'icon': Icons.tips_and_updates,
+      'title': 'Energy Tips',
+      'description': 'Discover energy-saving best practices.',
+      'onTap': () {
+        Toast.show(context, 'Energy Tips page is coming soon.');
+      },
+    },
+    {
+      'icon': Icons.pending_actions,
+      'title': 'Coming Soon',
+      'description': 'Stay tuned for new features.',
+      'onTap': () {
+        Toast.show(context, 'Feature under construction.');
+      },
+    },
+  ];
+
   return Container(
-    height: showCategories ? MediaQuery.of(context).size.height * 0.6 : 80,
+    height: showCategories ? MediaQuery.of(context).size.height * 0.4 : 80,
     padding: const EdgeInsets.all(16.0),
     child: Column(
       children: [
@@ -128,7 +161,7 @@ Widget _buildCategorySection() {
             ),
             Row(
               children: [
-                const Text('Expand/Collapse Categories', style: TextStyle(color: Colors.white, fontSize: 14)),
+                const Text('Expand/Collapse', style: TextStyle(color: Colors.white, fontSize: 14)),
                 IconButton(
                   onPressed: () {
                     setState(() {
@@ -147,67 +180,65 @@ Widget _buildCategorySection() {
         if (showCategories) ...[
           const SizedBox(height: 6),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                double maxCardWidth = 300;
-                int crossAxisCount = (constraints.maxWidth / maxCardWidth).floor().clamp(2, 4);
-                double cardWidth = constraints.maxWidth / crossAxisCount - 12;
-                double titleFontSize = (cardWidth * 0.065).clamp(9.0, 14.0);
-                double descFontSize = (cardWidth * 0.055).clamp(8.0, 13.0);
-                double exampleFontSize = (cardWidth * 0.045).clamp(8.0, 13.0);
-                return GridView.builder(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 440,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.95,
-                  ),
-                  itemCount: mainCategories.length,
-                  itemBuilder: (context, index) {
-                    final category = mainCategories[index];
-                    return Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-                      color: const Color(0xFF2C2C2C),
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              category['title']!.toUpperCase(),
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: titleFontSize,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              category['description']!,
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: descFontSize,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              category['examples']!,
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: exampleFontSize,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
+  child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 32.0), // 左右留白
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        double maxWidth = constraints.maxWidth;
+        double maxCardWidth = 300; // 单卡片最大宽度，超了就换行
+        int crossAxisCount = (maxWidth / maxCardWidth).floor().clamp(2, 4);
+
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 24.0, // 卡片间距
+            mainAxisSpacing: 24.0,
+            childAspectRatio: 1.8,  // 你想要的宽高比
+          ),
+          itemCount: homeCards.length,
+          itemBuilder: (context, index) {
+            final card = homeCards[index];
+            return InkWell(
+              onTap: card['onTap'],
+              child: Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+                color: const Color(0xFF2C2C2C),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(card['icon'], color: Colors.white, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        card['title'],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+                      const SizedBox(height: 8),
+                      Text(
+                        card['description'],
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ),
+  ),
+)
+
         ],
       ],
     ),

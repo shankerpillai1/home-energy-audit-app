@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_client/screens/home_page.dart';
-import 'package:flutter_client/screens/history_page.dart';
+import 'package:flutter_client/screens/job_page.dart';
 import 'package:flutter_client/screens/profile_page.dart';
 import 'package:flutter_client/screens/login_page.dart';
 import 'package:flutter_client/screens/create_job_page.dart';
+import 'package:flutter_client/screens/create_job_wizard_page.dart';
+import 'package:flutter_client/screens/report_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final String userName;
@@ -50,14 +52,16 @@ class _DashboardPageState extends State<DashboardPage> {
   // Returns the correct widget based on currentRoute
   Widget _getPage() {
     switch (currentRoute) {
-      case '/dashboard/history':
-        return HistoryPage(userName: widget.userName);
+      case '/dashboard/refine':
+        return RefinePage(userName: widget.userName, jobName: '', createdTime: '', status: '', selectedIdleDevices: {},);
       case '/dashboard/profile':
         return ProfilePage(userName: widget.userName, showLogout: true);
+      case '/dashboard/report':
+        return ReportPage(jobName: '', userName: '', createdTime: '', status: '',);
       case '/dashboard/create':
-        return CreateJobPage(
-          userName: widget.userName,
-          onBack: () => _navigate('/dashboard/home'), 
+        return CreateJobWizardPage(
+          onBack: () => _navigate('/dashboard/refine'), 
+          
         );
       case '/dashboard/home':
       default:
@@ -91,8 +95,9 @@ class _DashboardPageState extends State<DashboardPage> {
                           onTap: _onMobileTap,
                           items: const [
                             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                            BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-                            BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+                            BottomNavigationBarItem(icon: Icon(Icons.task), label: 'Refine'),
+                            BottomNavigationBarItem(icon: Icon(Icons.report), label: 'Report'),
+                            BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Setting'),
                           ],
                         ),
                       ],
@@ -108,7 +113,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               Column(
                                 children: [
                                   _buildSidebarIcon(Icons.home, '/dashboard/home', 'Home'),
-                                  _buildSidebarIcon(Icons.history, '/dashboard/history', 'History'),
+                                  _buildSidebarIcon(Icons.task, '/dashboard/refine', 'Refine'),
+                                  _buildSidebarIcon(Icons.book,'/dashboard/report', 'Report'),
                                 ],
                               ),
                               Column(
