@@ -13,9 +13,11 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final TextEditingController _userCtrl = TextEditingController();
-  final TextEditingController _pwdCtrl = TextEditingController();
-  final AuthService _auth = AuthService();
+  final _userCtrl = TextEditingController();
+  final _pwdCtrl = TextEditingController();
+  final _auth = AuthService();
+
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -23,78 +25,98 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final notifier = ref.read(userProvider.notifier);
 
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 6,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Login', style: theme.textTheme.displayLarge),
-                  const SizedBox(height: 24),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              elevation: 6,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Login', style: theme.textTheme.displayLarge),
+                    const SizedBox(height: 24),
 
-                  // Username
-                  TextField(
-                    controller: _userCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: Icon(Icons.person),
+                    // Username
+                    TextField(
+                      controller: _userCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: Icon(Icons.person),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Password
-                  TextField(
-                    controller: _pwdCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock),
+                    // Password
+                    TextField(
+                      controller: _pwdCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock),
+                      ),
+                      obscureText: true,
                     ),
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Login button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final user = _userCtrl.text.trim();
-                        final pwd = _pwdCtrl.text;
-                        if (user.isEmpty || pwd.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please fill in all fields')),
-                          );
-                          return;
-                        }
-                        final ok = await _auth.login(user, pwd);
-                        if (!ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Invalid username or password')),
-                          );
-                          return;
-                        }
-                        await notifier.login(user);
-                        context.go('/home');
-                      },
-                      child: const Text('LOGIN'),
+                    // Login button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                final user = _userCtrl.text.trim();
+                                final pwd = _pwdCtrl.text;
+                                if (user.isEmpty || pwd.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Please fill in all fields')),
+                                  );
+                                  return;
+                                }
+                                setState(() => _isLoading = true);
+                                final ok = await _auth.login(user, pwd);
+                                setState(() => _isLoading = false);
+                                if (!ok) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Invalid username or password')),
+                                  );
+                                  return;
+                                }
+                                await notifier.login(user);
+                                context.go('/home');
+                              },
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('LOGIN'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                  // To Register
-                  TextButton(
-                    onPressed: () => context.push('/register'),
-                    child: const Text('Create an account'),
-                    style: TextButton.styleFrom(
-                      textStyle: theme.textTheme.labelLarge,
+                    // To Register
+                    TextButton(
+                      onPressed: () => context.push('/register'),
+                      child: const Text('Create an account'),
+                      style: TextButton.styleFrom(
+                        textStyle: theme.textTheme.labelLarge,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

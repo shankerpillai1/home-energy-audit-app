@@ -46,8 +46,15 @@ class HomePage extends ConsumerWidget {
                             .copyWith(color: theme.colorScheme.onPrimary),
                       ),
                     ),
+                    // 使用内置 Icon 代替外部图片
                     CircleAvatar(
-                      backgroundImage: AssetImage('assets/avatar.png'),
+                      radius: 24,
+                      backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.3),
+                      child: Icon(
+                        Icons.person,
+                        size: 32,
+                        color: theme.colorScheme.onPrimary,
+                      ),
                     ),
                   ],
                 ),

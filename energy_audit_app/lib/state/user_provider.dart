@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/auth_service.dart';
 import '../services/local_storage_service.dart';
 
 class UserState {
@@ -30,29 +31,25 @@ class UserState {
 }
 
 class UserNotifier extends StateNotifier<UserState> {
+  final AuthService _auth = AuthService();
   final LocalStorageService _storage = LocalStorageService();
 
-  UserNotifier(): super(UserState()) {
+  UserNotifier() : super(UserState()) {
     _loadKnownUsers();
   }
 
-  /// Load previously used usernames from storage
+  /// Load registered users from secure storage.
   Future<void> _loadKnownUsers() async {
-    final list = await _storage.readJson('users');
-    if (list is List) {
-      state = state.copyWith(knownUsers: List<String>.from(list));
-    }
+    final users = await _auth.getAllUsers();
+    state = state.copyWith(knownUsers: users);
   }
 
-  /// Handle login: set username, update knownUsers, load intro flag
+  /// Set login state (assumes authentication already done externally).
   Future<void> login(String username) async {
-    // add to known users if new
-    final users = List<String>.from(state.knownUsers);
-    if (!users.contains(username)) {
-      users.add(username);
-      await _storage.saveJson('users', users);
-    }
-    // load whether this user has completed intro
+    // Load the up‑to‑date user list
+    final users = await _auth.getAllUsers();
+
+    // Load whether this user has completed the intro
     final doneKey = 'introCompleted_$username';
     final completed = await _storage.readBool(doneKey);
 
@@ -64,7 +61,7 @@ class UserNotifier extends StateNotifier<UserState> {
     );
   }
 
-  /// Mark intro completed and persist
+  /// Mark intro completed and persist.
   Future<void> completeIntro() async {
     if (state.username == null) return;
     final doneKey = 'introCompleted_${state.username}';
@@ -72,7 +69,7 @@ class UserNotifier extends StateNotifier<UserState> {
     state = state.copyWith(completedIntro: true);
   }
 
-  /// Logout current user
+  /// Logout current user (clears username & flags but preserves knownUsers).
   void logout() {
     state = UserState(knownUsers: state.knownUsers);
   }

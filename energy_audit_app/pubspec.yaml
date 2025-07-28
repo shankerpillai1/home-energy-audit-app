@@ -43,7 +43,7 @@ dependencies:
   flutter_riverpod: ^2.0.0   # state management
   json_annotation: ^4.0.1    # for model serialization
   dio: ^5.8.0+1
-  flutter_secure_storage: ^4.2.1
+  flutter_secure_storage: ^5.0.2
   crypto: ^3.0.6
 
 
