@@ -1,13 +1,15 @@
-// lib/ui/modules/leakage/leakage_task_page.dart
-
+// lib/ui/modules/leakage/task_page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p; // <-- needed for p.extension(...)
 
 import '../../../models/leakage_task.dart';
-import '../../../state/leakage_task_provider.dart';
+import '../../../providers/leakage_task_provider.dart'; // moved from state/ to providers/
+import '../../../providers/repository_providers.dart'; // moved from state/ to providers/
+import '../../../providers/user_provider.dart'; // moved from state/ to providers/
 
 class LeakageTaskPage extends ConsumerStatefulWidget {
   final String taskId;
@@ -17,301 +19,442 @@ class LeakageTaskPage extends ConsumerStatefulWidget {
   ConsumerState<LeakageTaskPage> createState() => _LeakageTaskPageState();
 }
 
-/// Model for one leakage point's media
-class LeakagePoint {
-  String? rgbPath;
-  String? thermalPath;
-  LeakagePoint({this.rgbPath, this.thermalPath});
+class _Obs {
+  String? rgbRel; // module-relative path
+  String? thermalRel; // module-relative path
 }
 
 class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
-  late TextEditingController _titleCtrl;
-  String _selectedType = '';
-  List<LeakagePoint> _points = [];
-  final ImagePicker _picker = ImagePicker();
+  final _titleCtrl = TextEditingController();
+  String _type = '';
+  final List<_Obs> _obs = [];
+  bool _saving = false;
+  bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
-    final notifier = ref.read(leakageTaskListProvider.notifier);
-    final existing = notifier.getById(widget.taskId);
-    if (existing != null) {
-      _titleCtrl = TextEditingController(text: existing.title);
-      _selectedType = existing.type;
-      final paths = existing.photoPaths;
-      for (int i = 0; i < paths.length; i += 2) {
-        _points.add(LeakagePoint(
-          rgbPath: paths[i],
-          thermalPath: i + 1 < paths.length ? paths[i + 1] : null,
-        ));
-      }
-      if (_points.isEmpty) {
-        _points = [LeakagePoint()];
+    _loadExisting();
+  }
+
+  void _loadExisting() {
+    final task = ref
+        .read(leakageTaskListProvider.notifier)
+        .getById(widget.taskId);
+    if (task != null) {
+      _titleCtrl.text = task.title;
+      _type = task.type;
+      // Convert flat photoPaths [rgb, thermal, rgb, thermal...] into obs pairs
+      final pp = task.photoPaths;
+      if (pp.isNotEmpty) {
+        for (int i = 0; i < pp.length; i += 2) {
+          final o = _Obs();
+          o.rgbRel = pp[i];
+          if (i + 1 < pp.length) o.thermalRel = pp[i + 1];
+          _obs.add(o);
+        }
       }
     } else {
-      _titleCtrl = TextEditingController();
-      _points = [LeakagePoint()];
+      // fresh new task with one empty observation by default
+      _obs.add(_Obs());
+    }
+    setState(() {});
+  }
+
+  Future<void> _saveLocally() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final photos = <String>[];
+      for (final o in _obs) {
+        if (o.rgbRel != null) photos.add(o.rgbRel!);
+        if (o.thermalRel != null) photos.add(o.thermalRel!);
+      }
+      final current = ref
+          .read(leakageTaskListProvider.notifier)
+          .getById(widget.taskId);
+      final task = LeakageTask(
+        id: widget.taskId,
+        title: _titleCtrl.text.trim(),
+        type: _type,
+        photoPaths: photos,
+        createdAt: current?.createdAt,
+        analysisSummary: current?.analysisSummary,
+        recommendations: current?.recommendations,
+        report: current?.report, // keep existing report if any
+      );
+      await ref.read(leakageTaskListProvider.notifier).upsertTask(task);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved locally')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  void _addPoint() {
+  Future<void> _submitAndAnalyze() async {
+    // Ask how many leak points to generate (mock)
+    final count = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController(text: '2');
+        return AlertDialog(
+          title: const Text('Detected points'),
+          content: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'How many leak points should be generated?',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final n = int.tryParse(ctrl.text.trim()) ?? 0;
+                Navigator.pop(ctx, n < 0 ? 0 : n);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (count == null) return;
+
+    setState(() => _submitting = true);
+    try {
+      // 1) Save current edits
+      await _saveLocally();
+      // 2) Call mock backend via provider (will write report)
+      await ref
+          .read(leakageTaskListProvider.notifier)
+          .submitForAnalysis(widget.taskId, detectedCount: count);
+      if (!mounted) return;
+      // 3) Go to report
+      context.go('/leakage/report/${widget.taskId}');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _pickOrCapture({
+    required int index,
+    required bool isThermal,
+    required bool fromCamera,
+  }) async {
+    final picker = ImagePicker();
+    final XFile? x = await picker.pickImage(
+      source: fromCamera ? ImageSource.camera : ImageSource.gallery,
+    );
+    if (x == null) return;
+
+    final fs = ref.read(fileStorageServiceProvider);
+    final user = ref.read(userProvider);
+    final uid =
+        (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+
+    // Suggested filename: obs<idx>_<kind>.<ext>
+    final ext = p.extension(x.path).isNotEmpty ? p.extension(x.path) : '.jpg';
+    final kind = isThermal ? 'thermal' : 'rgb';
+    final preferred = 'obs${index}_${kind}$ext';
+
+    final rel = await fs.saveMediaFromFilePath(
+      uid: uid,
+      module: 'leakage',
+      taskId: widget.taskId,
+      sourcePath: x.path,
+      preferredFileName: preferred,
+    );
+
+    final o = _obs[index];
     setState(() {
-      _points.add(LeakagePoint());
+      if (isThermal) {
+        o.thermalRel = rel;
+      } else {
+        o.rgbRel = rel;
+      }
     });
   }
 
-  void _removePoint(int index) {
-    setState(() {
-      _points.removeAt(index);
-    });
-  }
+  void _addObservation() => setState(() => _obs.add(_Obs()));
 
-  void _saveDraft() {
-    final notifier = ref.read(leakageTaskListProvider.notifier);
-    final existing = notifier.getById(widget.taskId);
-    final allPaths = <String>[];
-    for (var pt in _points) {
-      if (pt.rgbPath != null) allPaths.add(pt.rgbPath!);
-      if (pt.thermalPath != null) allPaths.add(pt.thermalPath!);
+  void _removeObservation(int index) => setState(() => _obs.removeAt(index));
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leakage Task'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/leakage/dashboard');
+            }
+          },
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _saving ? null : _saveLocally,
+                  child:
+                      _saving
+                          ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Text('Save Locally'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _submitting ? null : _submitAndAnalyze,
+                  icon:
+                      _submitting
+                          ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Icon(Icons.cloud_upload),
+                  label: Text(
+                    _submitting ? 'Submitting...' : 'Submit & Analyze',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: _titleCtrl,
+              decoration: const InputDecoration(labelText: 'Task Title'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _type.isEmpty ? null : _type,
+              items:
+                  const ['door', 'window', 'wall']
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+              decoration: const InputDecoration(labelText: 'Type'),
+              onChanged: (v) => setState(() => _type = v ?? ''),
+            ),
+            const SizedBox(height: 16),
+
+            // Observations
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Observations',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            for (int i = 0; i < _obs.length; i++)
+              _ObservationCard(
+                index: i,
+                data: _obs[i],
+                onPickRgb:
+                    (fromCamera) => _pickOrCapture(
+                      index: i,
+                      isThermal: false,
+                      fromCamera: fromCamera,
+                    ),
+                onPickThermal:
+                    (fromCamera) => _pickOrCapture(
+                      index: i,
+                      isThermal: true,
+                      fromCamera: fromCamera,
+                    ),
+                onRemove: () => _removeObservation(i),
+              ),
+
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addObservation,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Observation'),
+              ),
+            ),
+            const SizedBox(height: 80), // leave space for bottom bar
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ObservationCard extends ConsumerWidget {
+  final int index;
+  final _Obs data;
+  final void Function(bool fromCamera) onPickRgb;
+  final void Function(bool fromCamera) onPickThermal;
+  final VoidCallback onRemove;
+
+  const _ObservationCard({
+    Key? key,
+    required this.index,
+    required this.data,
+    required this.onPickRgb,
+    required this.onPickThermal,
+    required this.onRemove,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fs = ref.read(fileStorageServiceProvider);
+    final user = ref.read(userProvider);
+    final uid =
+        (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+
+    Future<Widget> _preview(String? rel) async {
+      if (rel == null) {
+        return Container(
+          height: 200,
+          width: double.infinity,
+          color: Colors.grey.shade200,
+          child: const Center(child: Icon(Icons.image, size: 40)),
+        );
+      }
+      final abs = await fs.resolveModuleAbsolute(uid, 'leakage', rel);
+      final f = File(abs);
+      if (!await f.exists()) {
+        return Container(
+          height: 200,
+          width: double.infinity,
+          color: Colors.grey.shade200,
+          child: const Center(child: Icon(Icons.image_not_supported, size: 40)),
+        );
+      }
+      return GestureDetector(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder:
+                (_) => Dialog(
+                  insetPadding: const EdgeInsets.all(12),
+                  child: InteractiveViewer(
+                    maxScale: 6,
+                    child: Image.file(f, fit: BoxFit.contain),
+                  ),
+                ),
+          );
+        },
+        child: Image.file(
+          f,
+          height: 200,
+          width: double.infinity,
+          fit: BoxFit.contain, // show full image without cropping
+        ),
+      );
     }
-    final task = LeakageTask(
-      id: widget.taskId,
-      title: _titleCtrl.text,
-      type: _selectedType,
-      photoPaths: allPaths,
-      createdAt: existing?.createdAt,
-      analysisSummary: existing?.analysisSummary,
-      recommendations: existing?.recommendations,
-    );
-    notifier.upsertTask(task);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved locally')),
-    );
-  }
 
-  void _submit() {
-    _saveDraft();
-    context.push('/leakage/report/${widget.taskId}');
-  }
-
-  Future<void> _captureRgb(int index) async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
-    if (file != null) {
-      setState(() => _points[index].rgbPath = file.path);
-    }
-  }
-
-  Future<void> _pickRgb(int index) async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (file != null) {
-      setState(() => _points[index].rgbPath = file.path);
-    }
-  }
-
-  Future<void> _captureThermal(int index) async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
-    );
-    if (file != null) {
-      setState(() => _points[index].thermalPath = file.path);
-    }
-  }
-
-  Future<void> _pickThermal(int index) async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (file != null) {
-      setState(() => _points[index].thermalPath = file.path);
-    }
-  }
-
-  Widget _buildPointCard(int index) {
-    final point = _points[index];
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title with delete button
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Leakage Point ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                if (_points.length > 1)
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _removePoint(index),
-                  ),
+                Text(
+                  'Observation ${index + 1}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Remove',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline),
+                ),
               ],
+            ),
+            const SizedBox(height: 8),
+
+            // RGB block
+            const Text('RGB Image'),
+            FutureBuilder<Widget>(
+              future: _preview(data.rgbRel),
+              builder: (_, snap) => snap.data ?? const SizedBox(height: 120),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                // RGB section
                 Expanded(
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: point.rgbPath == null
-                            ? const Center(
-                                child:
-                                    Icon(Icons.image, color: Colors.grey))
-                            : Image.file(File(point.rgbPath!),
-                                fit: BoxFit.cover),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _captureRgb(index),
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Camera'),
-                      ),
-                      const SizedBox(height: 4),
-                      ElevatedButton.icon(
-                        onPressed: () => _pickRgb(index),
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Upload'),
-                      ),
-                    ],
+                  child: OutlinedButton.icon(
+                    onPressed: () => onPickRgb(true),
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Camera'),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Thermal section
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 100,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: point.thermalPath == null
-                            ? const Center(
-                                child: Icon(Icons.thermostat,
-                                    color: Colors.grey))
-                            : Image.file(File(point.thermalPath!),
-                                fit: BoxFit.cover),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => _captureThermal(index),
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Camera'),
-                      ),
-                      const SizedBox(height: 4),
-                      ElevatedButton.icon(
-                        onPressed: () => _pickThermal(index),
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Upload'),
-                      ),
-                    ],
+                  child: OutlinedButton.icon(
+                    onPressed: () => onPickRgb(false),
+                    icon: const Icon(Icons.upload),
+                    label: const Text('Upload'),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/leakage/dashboard'),
-        ),
-        title: const Text('Create Task'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Title',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            TextField(
-              controller: _titleCtrl,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Living Room North Window',
-                border: OutlineInputBorder(),
-              ),
-            ),
             const SizedBox(height: 16),
-            const Text('Type',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            ToggleButtons(
-              isSelected: [
-                _selectedType == 'window',
-                _selectedType == 'door',
-                _selectedType == 'wall',
-              ],
-              onPressed: (i) {
-                setState(() {
-                  _selectedType = ['window', 'door', 'wall'][i];
-                });
-              },
-              borderRadius: BorderRadius.circular(8),
-              children: const [
-                Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('Window')),
-                Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('Door')),
-                Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('Wall')),
+
+            // Thermal block
+            const Text('Thermal Image'),
+            FutureBuilder<Widget>(
+              future: _preview(data.thermalRel),
+              builder: (_, snap) => snap.data ?? const SizedBox(height: 120),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => onPickThermal(true),
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Camera'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => onPickThermal(false),
+                    icon: const Icon(Icons.upload),
+                    label: const Text('Upload'),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 24),
-            // Point cards
-            ...List.generate(_points.length, (i) => _buildPointCard(i)),
-            // Add new point button
-            Center(
-              child: TextButton.icon(
-                onPressed: _addPoint,
-                icon: const Icon(Icons.add),
-                label: const Text('Add New Point'),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-                child: OutlinedButton(
-                    onPressed: _saveDraft, child: const Text('Save Draft'))),
-            const SizedBox(width: 12),
-            Expanded(
-                child: ElevatedButton(
-                    onPressed: _submit,
-                    child: const Text('Submit & Analyze'))),
           ],
         ),
       ),

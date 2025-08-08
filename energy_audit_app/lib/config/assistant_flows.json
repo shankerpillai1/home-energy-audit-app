@@ -1,9 +1,0 @@
-{
-    "welcome": [
-      { "text": "欢迎使用家庭能源审计助手！", "delay": 500 }
-    ],
-    "choose_module": [
-      { "text": "请选择要执行的模块：", "options": ["Seal Air Leaks", "Thermostat", "AC"] }
-    ]
-  }
-  

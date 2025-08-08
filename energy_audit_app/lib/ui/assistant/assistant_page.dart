@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../state/assistant_provider.dart';
+import '../../providers/assistant_provider.dart';
 
 class AssistantPage extends ConsumerStatefulWidget {
   const AssistantPage({Key? key}) : super(key: key);

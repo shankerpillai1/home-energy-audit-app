@@ -1,4 +1,6 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
-    "cmake.sourceDirectory": "D:/Study/Research/home-energy-audit-app/flutter_client/linux"
+    "cmake.sourceDirectory": "D:/Study/Research/home-energy-audit-app/flutter_client/linux",
+    "maven.terminal.useJavaHome": true,
+    "java.jdt.ls.java.home": "C:/Program Files/Eclipse Adoptium/jdk-21.0.8.9-hotspot"
 }

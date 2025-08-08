@@ -1,55 +1,62 @@
 import 'dart:convert';
-import 'dart:math';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Handles user credentials in secure storage (mobile only).
+/// Very simple auth service backed by FlutterSecureStorage.
+/// - Key "users" holds a JSON array of usernames.
+/// - Key "user:<username>" holds a hex(SHA-256(password)).
+/// This is NOT production-grade auth; it's sufficient for local demo/testing.
 class AuthService {
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  static const _accountsKey = 'accounts_list';
+  static const _kUsersKey = 'users';
+  static const _kUserPrefix = 'user:'; // user:<username>
 
-  /// Get all registered usernames.
+  final FlutterSecureStorage _secure = const FlutterSecureStorage();
+
   Future<List<String>> getAllUsers() async {
-    final jsonStr = await _storage.read(key: _accountsKey);
-    if (jsonStr == null) return [];
-    return List<String>.from(json.decode(jsonStr) as List);
+    final s = await _secure.read(key: _kUsersKey);
+    if (s == null || s.trim().isEmpty) return [];
+    final decoded = json.decode(s);
+    if (decoded is List) {
+      return decoded.whereType<String>().toList();
+    }
+    return [];
   }
 
-  /// Register a new user. Returns false if username already exists.
   Future<bool> register(String username, String password) async {
     final users = await getAllUsers();
     if (users.contains(username)) return false;
 
-    final salt = _generateSalt();
-    final hash = _hashPassword(password, salt);
-    final cred = json.encode({'salt': salt, 'hash': hash});
-    await _storage.write(key: 'user_$username', value: cred);
+    final hash = _hash(password);
+    await _secure.write(key: '$_kUserPrefix$username', value: hash);
 
     users.add(username);
-    await _storage.write(key: _accountsKey, value: json.encode(users));
+    await _secure.write(key: _kUsersKey, value: json.encode(users));
     return true;
   }
 
-  /// Attempt login. Returns true if credentials match.
   Future<bool> login(String username, String password) async {
-    final credJson = await _storage.read(key: 'user_$username');
-    if (credJson == null) return false;
-
-    final data = json.decode(credJson) as Map<String, dynamic>;
-    final salt = data['salt'] as String;
-    final storedHash = data['hash'] as String;
-    final inputHash = _hashPassword(password, salt);
-    return inputHash == storedHash;
+    final users = await getAllUsers();
+    if (!users.contains(username)) return false;
+    final stored = await _secure.read(key: '$_kUserPrefix$username');
+    if (stored == null) return false;
+    return stored == _hash(password);
   }
 
-  String _generateSalt() {
-    final rng = Random.secure();
-    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
-    return base64Url.encode(bytes);
+  /// Remove all registered users and credentials from secure storage.
+  Future<void> clearAllUsers() async {
+    final users = await getAllUsers();
+    for (final u in users) {
+      await _secure.delete(key: '$_kUserPrefix$u');
+    }
+    await _secure.delete(key: _kUsersKey);
+    if (kDebugMode) {
+      // Optional: log
+    }
   }
 
-  String _hashPassword(String password, String salt) {
-    final bytes = utf8.encode(salt + password);
+  String _hash(String input) {
+    final bytes = utf8.encode(input);
     return sha256.convert(bytes).toString();
   }
 }

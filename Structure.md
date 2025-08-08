@@ -121,42 +121,62 @@ Assistant 与模块绑定为引导路径，但不存数据，只导航
 数据集中管理	所有数据结构围绕 Task 和 RetrofitAction，逻辑统一
 引导人性化	Assistant 模块设计充分降低用户使用门槛
 平台统一性好	通过 Flutter 结构设计兼容 Web & Mobile 同步逻辑
-
 lib/
-├── main.dart                         # 启动入口
-├── app.dart                          # 应用根组件（导航配置）
-├── config/                           # 配置项（颜色、常量、模拟数据）
-│   ├── themes.dart
-│   └── assistant_flows.json          # assistant 对话配置
-├── models/                           # 所有数据结构
-│   ├── user_profile.dart
-│   ├── leakage_task.dart                     #每个retroit可能有不同输入，先留出扩展位置，只做leakage
-│   ├── leakage_report.dart
-│   └── retrofit_module.dart
-├── services/                         # 数据源、API、存储
-│   ├── local_storage_service.dart
-│   ├── backend_api_service.dart
-│   └── assistant_service.dart
-├── state/                            # 状态管理（Provider / Riverpod）
-│   ├── user_provider.dart
-│   ├── task_provider.dart
-│   └── assistant_provider.dart
-├── ui/                               # 所有界面页面
-│   ├── auth/                         # 登录 / 注册
-│   ├── intro/                        # Intro 信息填写
-│   ├── home/                         # 首页及主面板
-│   ├── assistant/                   # 模拟对话助手
-│   └── modules/                      # 各功能模块统一放置
-│       └── leakage/
-│           ├── history_page.dart
-│           ├── task_page.dart
-│           ├── report_page.dart
-│           ├── camera_page.dart
-│           └── leakage_module.dart   # 模块注册点
-├── widgets/                          # 可复用组件
-│   ├── retrofit_card.dart
-│   ├── dashboard_card.dart
-│   ├── assistant_bubble.dart
-│   └── task_tile.dart
-└── utils/
-    └── constants.dart
+├─ config/
+│  └─ themes.dart
+│     → Global Material theme (ColorScheme, TextTheme, AppBar, buttons).
+│
+├─ models/
+│  ├─ leakage_task.dart
+│     → Core data model for Leakage:
+│       - LeakageTask: id/title/type/photoPaths/createdAt + optional report.
+│       - LeakReport: optional payload (energy loss, severity, savings, points).
+│       - LeakReportPoint: a single leak point (title/subtitle/imagePath).
+│  └─ user_profile.dart
+│     → User profile / intro questionnaire model (future: stored to user.json).
+│
+├─ repositories/
+│  ├─ file_task_repository.dart
+│     → TaskRepository implementation backed by JSON files on disk.
+│       - With per-user/per-module paths (users/<uid>/<module>/tasks.json).
+│       - In debug on desktop, also mirrors JSON into your workspace folder
+│         under .debug_data/… so you can open it directly from VS Code.
+│  └─ task_repository.dart
+│     → Repository interface: fetchAll/fetchById/upsert/delete.
+│
+├─ services/
+│  ├─ assistant_service.dart
+│     → Assistant flow logic (no persistence).
+│  ├─ auth_service.dart
+│     → Auth session/credentials. Use secure storage for sensitive tokens later.
+│  ├─ backend_api_service.dart
+│     → Placeholder for HTTP calls (submit analysis / fetch results).
+│  ├─ file_storage_service.dart
+│     → Low-level JSON file I/O.
+│       - Resolves sandbox paths.
+│       - Provides per-user/per-module files.
+│       - (Debug desktop) optional workspace mirroring to ./.debug_data/.
+│  └─ settings_service.dart
+│     → Lightweight app settings (SharedPreferences). Flags only (e.g. hasSeenIntro).
+│
+├─ state/
+│  ├─ assistant_provider.dart         → Riverpod state for Assistant.
+│  ├─ leakage_task_provider.dart      → StateNotifier for leakage tasks (uses TaskRepository).
+│  ├─ repository_providers.dart       → Wires FileStorageService + FileTaskRepository (+ user id).
+│  └─ user_provider.dart              → Auth/intro state (exposes isLoggedIn, completedIntro, uid).
+│
+├─ ui/
+│  ├─ assistant/                      → Assistant UI.
+│  ├─ auth/                           → Login/Register screens.
+│  ├─ home/                           → Home dashboard & entry cards.
+│  ├─ intro/                          → Intro questionnaire UI.
+│  └─ modules/leakage/
+│     ├─ dashboard_page.dart          → Main “Leakage” hub (tutorial, new task, in-progress/completed).
+│     ├─ report_page.dart             → Report UI (reads task.report; can generate mock for testing).
+│     └─ task_page.dart               → Create/Edit Task (multi leak points, RGB/Thermal buttons).
+│
+├─ utils/
+│  └─ …                               → Helpers/constants as needed.
+│
+├─ app.dart                           → Root app widget (MaterialApp.router + GoRouter guards).
+└─ main.dart                          → Entry point (ProviderScope + EnergyAuditApp).
