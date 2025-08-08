@@ -45,6 +45,8 @@ dependencies:
   dio: ^5.8.0+1
   flutter_secure_storage: ^5.0.2
   crypto: ^3.0.6
+  flutter_slidable: ^3.0.0
+  image_picker: ^0.8.7+3
 
 
   

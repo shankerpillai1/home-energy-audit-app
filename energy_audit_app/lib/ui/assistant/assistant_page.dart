@@ -72,10 +72,9 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
                         child: GestureDetector(
                           onTap: () {
                             // 仅在 Seal Air Leaks 或 LED 分支下点击 Learn more 时跳转
-                            if ((state.currentNodeId == 'Seal Air Leaks' ||
-                                 state.currentNodeId == 'Replace light bulbs with LED bulbs') &&
+                            if ((state.currentNodeId == 'Seal Air Leaks') &&
                                 label == 'Learn more and get help') {
-                              context.push('/leakage/history');
+                              context.push('/leakage/dashboard');
                               return;
                             }
                             notifier.onTap(label);

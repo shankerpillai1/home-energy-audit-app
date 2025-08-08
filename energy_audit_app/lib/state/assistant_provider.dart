@@ -66,8 +66,11 @@ class AssistantNotifier extends StateNotifier<AssistantState> {
     ),
     _carbonEntry: FlowNode(
       '''
-There are many potential ways to save money and reduce your carbon footprint...
-...Before getting into the details, there are three retrofits that are relatively cheap and easy.
+There are many potential ways to save money and reduce your carbon footprint. Many retrofits can do both, and some are better for one or the other.
+
+Figuring out the retrofits that are right for you can be complicated because there are a large number of potential retrofits, and whether is possible for your home and whether it will have a positive impact for your home can depend on many factors.
+
+Before getting into the details, there are three retrofits that are relatively cheap and easy, and are cost efficient for almost every home.
 ''',
       _carbonOptions,
     ),

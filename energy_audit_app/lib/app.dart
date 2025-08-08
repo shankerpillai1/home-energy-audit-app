@@ -12,6 +12,7 @@ import 'ui/assistant/assistant_page.dart';
 import 'ui/modules/leakage/history_page.dart';
 import 'ui/modules/leakage/task_page.dart';
 import 'ui/modules/leakage/report_page.dart';
+import 'ui/modules/leakage/dashboard_page.dart';
 import 'config/themes.dart';
 
 class EnergyAuditApp extends ConsumerWidget {
@@ -44,8 +45,8 @@ class EnergyAuditApp extends ConsumerWidget {
 
           // Leakage 模块
           GoRoute(
-            path: '/leakage/history',
-            builder: (_, __) => const LeakageHistoryPage(),
+            path: '/leakage/dashboard',
+            builder: (_, __) => const LeakageDashboardPage(),
           ),
           GoRoute(
             path: '/leakage/task/:id',
