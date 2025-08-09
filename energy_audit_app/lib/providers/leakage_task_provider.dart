@@ -1,4 +1,3 @@
-// lib/providers/leakage_task_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/leakage_task.dart';
@@ -20,7 +19,7 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
     _repo = ref.read(taskRepositoryProvider);
     _load();
 
-    // Reload when user changes (e.g., login/logout/switch)
+    // Reload when user changes (login/logout/switch)
     ref.listen(userProvider, (prev, next) {
       final prevUid = prev?.uid;
       final nextUid = next.uid;
@@ -36,7 +35,7 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
     state = List.unmodifiable(list);
   }
 
-  /// Clear in-memory tasks (used when clearing local cache).
+  /// Clear in-memory tasks (used when clearing local cache)
   void resetAll() {
     state = const [];
   }
@@ -66,13 +65,15 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
     state = List.unmodifiable(state.where((t) => t.id != id));
   }
 
-  /// Submit a task for analysis (mock backend). You can specify how many
-  /// leak points to generate (>=0). Writes report back and updates state.
+  /// Submit a task for analysis (mock backend, no template).
+  /// Backend provider is nullable before login; we guard it here.
   Future<void> submitForAnalysis(String taskId, {int detectedCount = 2}) async {
     final task = getById(taskId);
     if (task == null) return;
 
-    final backend = ref.read(backendApiServiceProvider);
+    final BackendApiService? backend = ref.read(backendApiServiceProvider);
+    if (backend == null) return; // not logged in or no backend available
+
     final report = await backend.analyzeLeakageTask(task, detectedCount: detectedCount);
 
     final updated = LeakageTask(

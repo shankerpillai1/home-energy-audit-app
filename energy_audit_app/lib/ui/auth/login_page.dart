@@ -3,11 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/user_provider.dart';
-import '../../providers/repository_providers.dart';
-import '../../providers/leakage_task_provider.dart';
 
 import '../../services/auth_service.dart';
-import '../../services/settings_service.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -22,52 +19,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _auth = AuthService();
 
   bool _isLoading = false;
-  bool _isClearing = false;
 
-  Future<void> _clearLocalData() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Clear local data?'),
-        content: const Text(
-          'This will remove app settings (SharedPreferences), ALL local task data '
-          '(users/* JSON & media), and ALL registered accounts stored in AuthService. '
-          'Use this to fully reset the app for testing.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-
-    setState(() => _isClearing = true);
-    try {
-      // 1) Clear SharedPreferences flags/settings
-      await SettingsService().clearAll();
-
-      // 2) Delete ALL local users tree (every uid/module, JSON + media + mirrors)
-      await ref.read(fileStorageServiceProvider).deleteAllUsersTree();
-
-      // 3) Clear ALL registered accounts in AuthService (the missing piece)
-      await _auth.clearAllUsers();
-
-      // 4) Reset in-memory states
-      ref.read(leakageTaskListProvider.notifier).resetAll();
-      ref.read(userProvider.notifier).logout();
-      // Refresh known users to reflect the cleared secure store
-      await ref.read(userProvider.notifier).reloadKnownUsers();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All local data cleared')),
-      );
-    } finally {
-      if (mounted) setState(() => _isClearing = false);
-    }
-  }
-
+  
   Future<void> _doLogin() async {
     final user = _userCtrl.text.trim();
     final pwd = _pwdCtrl.text;
@@ -122,17 +75,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Login'),
-        actions: [
-          IconButton(
-            tooltip: 'Clear local cache',
-            onPressed: _isClearing ? null : _clearLocalData,
-            icon: _isClearing
-                ? const SizedBox(
-                    width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.delete_forever),
-          ),
-        ],
+        
       ),
       body: SafeArea(
         child: Center(

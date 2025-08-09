@@ -1,13 +1,11 @@
 // lib/services/backend_api_service.dart
 import 'dart:async';
-import 'package:path/path.dart' as p;
 
 import '../models/leakage_task.dart';
 import '../services/file_storage_service.dart';
-import '../utils/asset_to_file.dart';
 
 /// Simulated backend service for leakage analysis.
-/// Later, replace this with real HTTP calls.
+/// Uses user-uploaded images only; no template fallback anymore.
 class BackendApiService {
   final FileStorageService fs;
   final String uid;
@@ -19,42 +17,30 @@ class BackendApiService {
     this.module = 'leakage',
   });
 
-  /// Analyze a task and return a mock report.
-  /// [detectedCount]: how many leak points to generate (>=0).
+  /// Generate a mock report.
+  /// - detectedCount: number of leak points to create (>=0)
+  /// Images are chosen from user's uploaded photos (prefer thermal).
   Future<LeakReport> analyzeLeakageTask(
     LeakageTask task, {
     int detectedCount = 2,
   }) async {
-    // Simulate network latency
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 400));
 
-    // Try to use user's thermal photos if any; fallback to template
-    final thermalRelList = _extractThermalRelPaths(task.photoPaths);
-    final hasThermal = thermalRelList.isNotEmpty;
-
-    // Ensure template is available for fallback
-    final templateRel = await AssetToFile(fs, uid: uid, module: module)
-        .ensureCopied(
-      assetPath: 'assets/images/thermal_template.jpg',
-      targetRelativePath: 'templates/thermal_template.jpg',
-    );
+    final candidates = _pickImageCandidates(task.photoPaths); // relative paths
 
     final points = <LeakReportPoint>[];
     for (int i = 0; i < detectedCount; i++) {
-      // round-robin choose a thermal image
-      final imgRel = hasThermal
-          ? thermalRelList[i % thermalRelList.length]
-          : templateRel;
+      final rel = candidates.isNotEmpty ? candidates[i % candidates.length] : null;
 
       points.add(
         LeakReportPoint(
           title: 'Detected Leak #${i + 1}',
           subtitle: 'Location: N/A\nGap size: N/A\nHeat loss: N/A',
-          imagePath: imgRel,
-          thumbPath: imgRel,
-          // fake a marker moving around
-          markerX: 0.15 + 0.12 * (i % 5),
-          markerY: 0.18 + 0.10 * (i % 4),
+          imagePath: rel,
+          thumbPath: rel,
+          // Fake a marker moving around
+          markerX: 0.12 + 0.15 * (i % 5),
+          markerY: 0.18 + 0.12 * (i % 4),
           markerW: 0.18,
           markerH: 0.20,
           suggestions: [
@@ -70,8 +56,7 @@ class BackendApiService {
       );
     }
 
-    // Simple high-level numbers for demo
-    final report = LeakReport(
+    return LeakReport(
       energyLossCost: detectedCount == 0 ? r'$0/year' : r'$142/year',
       energyLossValue: detectedCount == 0 ? '0 kWh/mo' : '15.8 kWh/mo',
       leakSeverity: detectedCount == 0 ? 'None' : 'Moderate',
@@ -79,18 +64,20 @@ class BackendApiService {
       savingsPercent: detectedCount == 0 ? '0%' : '19% reduction',
       points: points,
     );
-
-    return report;
   }
 
-  /// We treat every pair as [RGB, Thermal]. Thermal are at odd indices.
-  List<String> _extractThermalRelPaths(List<String> photoPaths) {
-    final result = <String>[];
-    for (int i = 0; i < photoPaths.length; i++) {
+  /// Prefer thermal (odd indices), otherwise fall back to RGB.
+  List<String> _pickImageCandidates(List<String> paths) {
+    if (paths.isEmpty) return const [];
+    final thermals = <String>[];
+    final rgbs = <String>[];
+    for (int i = 0; i < paths.length; i++) {
       if (i % 2 == 1) {
-        result.add(photoPaths[i]);
+        thermals.add(paths[i]);
+      } else {
+        rgbs.add(paths[i]);
       }
     }
-    return result;
+    return thermals.isNotEmpty ? thermals : rgbs;
   }
 }
