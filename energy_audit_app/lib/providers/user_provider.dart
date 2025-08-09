@@ -1,22 +1,16 @@
-// lib/providers/user_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 
-/// Immutable user view-model stored in Riverpod.
 class UserState {
-  /// Username also serves as our simple uid.
   final String? username;
-
-  /// Whether the user is authenticated in the app session.
   final bool isLoggedIn;
-
-  /// Whether the user completed the intro/onboarding flow.
   final bool completedIntro;
-
-  /// Cached list of known/registered usernames (for convenience in UI).
   final List<String> knownUsers;
+
+  // Expose uid; for now we just use username as uid.
+  String? get uid => username;
 
   const UserState({
     this.username,
@@ -24,9 +18,6 @@ class UserState {
     this.completedIntro = false,
     this.knownUsers = const [],
   });
-
-  /// Simple uid alias (same as username for this demo).
-  String? get uid => username;
 
   UserState copyWith({
     String? username,
@@ -43,7 +34,6 @@ class UserState {
   }
 }
 
-/// Manages login state, onboarding flag, and the known-users cache.
 class UserNotifier extends StateNotifier<UserState> {
   final AuthService _auth = AuthService();
   final SettingsService _settings = SettingsService();
@@ -52,25 +42,16 @@ class UserNotifier extends StateNotifier<UserState> {
     _loadKnownUsers();
   }
 
-  /// Internal: refresh the known users list from AuthService.
+  /// Load registered users from local registry.
   Future<void> _loadKnownUsers() async {
     final users = await _auth.getAllUsers();
     state = state.copyWith(knownUsers: users);
   }
 
-  /// Public helper to refresh known users (e.g., after clearing secure storage).
-  Future<void> reloadKnownUsers() => _loadKnownUsers();
-
-  /// Mark the current process as logged-in for [username].
-  /// Assumes credentials have already been validated by AuthService.
+  /// Log in (assumes AuthService has validated credentials).
   Future<void> login(String username) async {
-    // Get the up-to-date registered users.
     final users = await _auth.getAllUsers();
-
-    // Load this user's "intro completed" flag from SharedPreferences.
-    final doneKey = 'introCompleted_$username';
-    final completed = await _settings.readBool(doneKey);
-
+    final completed = await _settings.readBool('introCompleted_$username');
     state = state.copyWith(
       username: username,
       isLoggedIn: true,
@@ -79,22 +60,28 @@ class UserNotifier extends StateNotifier<UserState> {
     );
   }
 
-  /// Mark intro as completed and persist the flag.
+  /// Mark intro as completed (and persist flag).
   Future<void> completeIntro() async {
-    final u = state.username;
-    if (u == null) return;
-    final doneKey = 'introCompleted_$u';
-    await _settings.saveBool(doneKey, true);
+    final name = state.username;
+    if (name == null || name.isEmpty) return;
+    await _settings.saveBool('introCompleted_$name', true);
     state = state.copyWith(completedIntro: true);
   }
 
-  /// Logout current user; keep the knownUsers cache intact.
+  /// Mark intro as NOT completed (used after data clearing).
+  Future<void> markIntroIncompleteForCurrent() async {
+    final name = state.username;
+    if (name == null || name.isEmpty) return;
+    await _settings.saveBool('introCompleted_$name', false);
+    state = state.copyWith(completedIntro: false);
+  }
+
+  /// Logout but keep known users list.
   void logout() {
     state = UserState(knownUsers: state.knownUsers);
   }
 }
 
-/// Global provider for user state.
 final userProvider = StateNotifierProvider<UserNotifier, UserState>(
   (ref) => UserNotifier(),
 );

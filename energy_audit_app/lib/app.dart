@@ -15,7 +15,7 @@ import 'ui/modules/leakage/dashboard_page.dart';
 import 'config/themes.dart';
 
 class EnergyAuditApp extends ConsumerWidget {
-  const EnergyAuditApp({Key? key}) : super(key: key);
+  const EnergyAuditApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,7 +30,7 @@ class EnergyAuditApp extends ConsumerWidget {
         routes: [
           GoRoute(
             path: '/',
-            redirect: (_, state) {
+            redirect: (_, __) {
               if (!user.isLoggedIn) return '/login';
               if (!user.completedIntro) return '/intro';
               return '/home';
@@ -42,7 +42,7 @@ class EnergyAuditApp extends ConsumerWidget {
           GoRoute(path: '/home', builder: (_, __) => const HomePage()),
           GoRoute(path: '/assistant', builder: (_, __) => const AssistantPage()),
 
-          // Leakage 模块
+          // Leakage
           GoRoute(
             path: '/leakage/dashboard',
             builder: (_, __) => const LeakageDashboardPage(),
@@ -50,7 +50,6 @@ class EnergyAuditApp extends ConsumerWidget {
           GoRoute(
             path: '/leakage/task/:id',
             builder: (context, state) {
-              // 从 pathParameters 读取 id
               final taskId = state.pathParameters['id']!;
               return LeakageTaskPage(taskId: taskId);
             },
@@ -65,20 +64,23 @@ class EnergyAuditApp extends ConsumerWidget {
         ],
         redirect: (context, state) {
           final loc = state.location;
+
+          // 1) If not logged in: everything goes to /login except /register.
           if (!user.isLoggedIn && loc != '/login' && loc != '/register') {
             return '/login';
           }
-          if (user.isLoggedIn &&
-              !user.completedIntro &&
-              loc != '/intro' &&
-              loc != '/register') {
+
+          // 2) If logged in but NOT completed intro: force to /intro, except when already on /intro.
+          if (user.isLoggedIn && !user.completedIntro && loc != '/intro') {
             return '/intro';
           }
-          if (user.isLoggedIn &&
-              user.completedIntro &&
-              (loc == '/login' || loc == '/intro' || loc == '/register')) {
+
+          // 3) If logged in and tries to go to /login or /register, send to /home.
+          //    NOTE: We intentionally DO NOT block /intro here so users can edit it later.
+          if (user.isLoggedIn && (loc == '/login' || loc == '/register')) {
             return '/home';
           }
+
           return null;
         },
       ),

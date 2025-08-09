@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/assistant_provider.dart';
 
 class AssistantPage extends ConsumerStatefulWidget {
-  const AssistantPage({Key? key}) : super(key: key);
+  const AssistantPage({super.key});
   @override
   _AssistantPageState createState() => _AssistantPageState();
 }

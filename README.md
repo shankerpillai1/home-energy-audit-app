@@ -62,3 +62,8 @@ On iPad:
 Go to: Settings → Privacy & Security → Developer Mode
 
 Turn it ON → Restart iPad → Confirm Enable
+
+
+
+requirement:
+org.gradle.java.home=C:\Program Files\Eclipse Adoptium\jdk-17.0.16.8-hotspot\

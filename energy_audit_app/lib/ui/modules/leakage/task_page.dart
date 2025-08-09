@@ -13,7 +13,7 @@ import '../../../providers/user_provider.dart'; // moved from state/ to provider
 
 class LeakageTaskPage extends ConsumerStatefulWidget {
   final String taskId;
-  const LeakageTaskPage({Key? key, required this.taskId}) : super(key: key);
+  const LeakageTaskPage({super.key, required this.taskId});
 
   @override
   ConsumerState<LeakageTaskPage> createState() => _LeakageTaskPageState();
@@ -162,7 +162,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
     // Suggested filename: obs<idx>_<kind>.<ext>
     final ext = p.extension(x.path).isNotEmpty ? p.extension(x.path) : '.jpg';
     final kind = isThermal ? 'thermal' : 'rgb';
-    final preferred = 'obs${index}_${kind}$ext';
+    final preferred = 'obs${index}_$kind$ext';
 
     final rel = await fs.saveMediaFromFilePath(
       uid: uid,
@@ -320,13 +320,13 @@ class _ObservationCard extends ConsumerWidget {
   final VoidCallback onRemove;
 
   const _ObservationCard({
-    Key? key,
+    super.key,
     required this.index,
     required this.data,
     required this.onPickRgb,
     required this.onPickThermal,
     required this.onRemove,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -335,7 +335,7 @@ class _ObservationCard extends ConsumerWidget {
     final uid =
         (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
 
-    Future<Widget> _preview(String? rel) async {
+    Future<Widget> preview(String? rel) async {
       if (rel == null) {
         return Container(
           height: 200,
@@ -403,7 +403,7 @@ class _ObservationCard extends ConsumerWidget {
             // RGB block
             const Text('RGB Image'),
             FutureBuilder<Widget>(
-              future: _preview(data.rgbRel),
+              future: preview(data.rgbRel),
               builder: (_, snap) => snap.data ?? const SizedBox(height: 120),
             ),
             const SizedBox(height: 8),
@@ -432,7 +432,7 @@ class _ObservationCard extends ConsumerWidget {
             // Thermal block
             const Text('Thermal Image'),
             FutureBuilder<Widget>(
-              future: _preview(data.thermalRel),
+              future: preview(data.thermalRel),
               builder: (_, snap) => snap.data ?? const SizedBox(height: 120),
             ),
             const SizedBox(height: 8),

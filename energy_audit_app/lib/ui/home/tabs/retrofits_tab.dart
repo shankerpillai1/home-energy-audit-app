@@ -209,7 +209,7 @@ const kRetrofitSections = <RetrofitSection>[
 ];
 
 class RetrofitsTab extends ConsumerWidget {
-  const RetrofitsTab({Key? key}) : super(key: key);
+  const RetrofitsTab({super.key});
 
   void _onTapItem(BuildContext context, RetrofitItem item) {
     if (!item.enabled) {
@@ -254,8 +254,7 @@ class RetrofitsTab extends ConsumerWidget {
 class _RetrofitItemCard extends StatelessWidget {
   final RetrofitItem item;
   final VoidCallback onTap;
-  const _RetrofitItemCard({Key? key, required this.item, required this.onTap})
-      : super(key: key);
+  const _RetrofitItemCard({super.key, required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

@@ -10,7 +10,7 @@ import '../../../providers/user_provider.dart';
 
 class LeakageReportPage extends ConsumerWidget {
   final String taskId;
-  const LeakageReportPage({Key? key, required this.taskId}) : super(key: key);
+  const LeakageReportPage({super.key, required this.taskId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -78,13 +78,13 @@ class LeakageReportPage extends ConsumerWidget {
 class _StatsRow extends StatelessWidget {
   final String cost, energy, severity, savingsCost, savingsPercent;
   const _StatsRow({
-    Key? key,
+    super.key,
     required this.cost,
     required this.energy,
     required this.severity,
     required this.savingsCost,
     required this.savingsPercent,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +109,7 @@ class _StatsRow extends StatelessWidget {
 class _StatCard extends StatelessWidget {
   final String title;
   final List<String> lines;
-  const _StatCard({Key? key, required this.title, required this.lines}) : super(key: key);
+  const _StatCard({super.key, required this.title, required this.lines});
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +148,7 @@ class _StatCard extends StatelessWidget {
 /// No trailing arrow icon; left thumb is now square.
 class _PointListTile extends ConsumerWidget {
   final LeakReportPoint point;
-  const _PointListTile({Key? key, required this.point}) : super(key: key);
+  const _PointListTile({super.key, required this.point});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,7 +179,7 @@ class _PointListTile extends ConsumerWidget {
 class _SquareThumb extends ConsumerWidget {
   final LeakReportPoint point;
   final double size;
-  const _SquareThumb({Key? key, required this.point, this.size = 48}) : super(key: key);
+  const _SquareThumb({super.key, required this.point, this.size = 48});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -191,13 +191,13 @@ class _SquareThumb extends ConsumerWidget {
       return _placeholder(size);
     }
 
-    Future<String?> _absOrNull(String? relOrAbs) async {
+    Future<String?> absOrNull(String? relOrAbs) async {
       if (relOrAbs == null) return null;
       return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
     }
 
     return FutureBuilder<String?>(
-      future: _absOrNull(point.thumbPath ?? point.imagePath),
+      future: absOrNull(point.thumbPath ?? point.imagePath),
       builder: (context, snap) {
         final path = snap.data;
         if (path == null || !File(path).existsSync()) {
@@ -226,7 +226,7 @@ class _SquareThumb extends ConsumerWidget {
 /// Removed explicit "Close" button; swipe down to dismiss.
 class _PointDetailSheet extends ConsumerWidget {
   final LeakReportPoint point;
-  const _PointDetailSheet({Key? key, required this.point}) : super(key: key);
+  const _PointDetailSheet({super.key, required this.point});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -234,14 +234,14 @@ class _PointDetailSheet extends ConsumerWidget {
     final user = ref.read(userProvider);
     final uid = user.uid?.trim();
 
-    Future<String?> _absOrNull(String? relOrAbs) async {
+    Future<String?> absOrNull(String? relOrAbs) async {
       if (uid == null || uid.isEmpty || relOrAbs == null) return null;
       return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
     }
 
     Widget buildMarkedImage() {
       return FutureBuilder<String?>(
-        future: _absOrNull(point.imagePath),
+        future: absOrNull(point.imagePath),
         builder: (context, snap) {
           final path = snap.data;
           if (path == null || !File(path).existsSync()) {

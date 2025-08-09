@@ -7,11 +7,11 @@ import '../../../providers/user_provider.dart';
 import '../../../providers/leakage_task_provider.dart';
 import '../../../providers/repository_providers.dart';
 
-import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/file_storage_service.dart';
 
 class AccountTab extends ConsumerWidget {
-  const AccountTab({Key? key}) : super(key: key);
+  const AccountTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,7 +21,6 @@ class AccountTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Header card
         Card(
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person)),
@@ -29,10 +28,8 @@ class AccountTab extends ConsumerWidget {
             subtitle: const Text('Signed in'),
           ),
         ),
-
         const SizedBox(height: 12),
 
-        // Profile section
         _SectionHeader('Profile'),
         Card(
           child: Column(
@@ -45,19 +42,17 @@ class AccountTab extends ConsumerWidget {
                 onTap: () => context.push('/intro'),
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.lock_reset),
-                title: const Text('Change password'),
-                subtitle: const Text('Coming soon'),
+              const ListTile(
+                leading: Icon(Icons.lock_reset),
+                title: Text('Change password'),
+                subtitle: Text('Coming soon'),
                 enabled: false,
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
-        // Data & privacy
         _SectionHeader('Data & Privacy'),
         Card(
           child: Column(
@@ -86,10 +81,8 @@ class AccountTab extends ConsumerWidget {
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
-        // Help & support
         _SectionHeader('Help & Support'),
         Card(
           child: Column(
@@ -100,35 +93,27 @@ class AccountTab extends ConsumerWidget {
                 onTap: () => context.push('/assistant'),
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.school_outlined),
-                title: const Text('Tutorials'),
-                subtitle: const Text('How to use features'),
+              const ListTile(
+                leading: Icon(Icons.school_outlined),
+                title: Text('Tutorials'),
+                subtitle: Text('How to use features'),
                 enabled: false,
               ),
             ],
           ),
         ),
-
         const SizedBox(height: 12),
 
-        // About
         _SectionHeader('About'),
-        Card(
-          child: Column(
-            children: const [
-              ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('Home Energy Audit'),
-                subtitle: Text('Version 0.1.0'),
-              ),
-            ],
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('Home Energy Audit'),
+            subtitle: Text('Version 0.1.0'),
           ),
         ),
-
         const SizedBox(height: 24),
 
-        // Logout button at bottom
         OutlinedButton.icon(
           onPressed: () {
             ref.read(userProvider.notifier).logout();
@@ -142,20 +127,15 @@ class AccountTab extends ConsumerWidget {
     );
   }
 
-  // --- Helpers ---
-
   Future<void> _showStorageInfo(BuildContext context, WidgetRef ref) async {
     final fs = ref.read(fileStorageServiceProvider);
     final repo = ref.read(taskRepositoryProvider);
     final user = ref.read(userProvider);
-    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+    final uid = (user.uid?.isNotEmpty == true) ? user.uid! : 'local';
 
-    // Use a known file to derive user root path
     final indexFile = await fs.moduleIndexFile(uid, 'leakage');
-    final userRootDir = indexFile.parent.parent; // .../users/<uid>
-
-    final tasks = await repo.fetchAll();
-    final count = tasks.length;
+    final userRoot = (await fs.userDir(uid)).path;
+    final count = (await repo.fetchAll()).length;
 
     showDialog(
       context: context,
@@ -167,8 +147,10 @@ class AccountTab extends ConsumerWidget {
           children: [
             const Text('User data root:'),
             const SizedBox(height: 4),
-            SelectableText(userRootDir.path, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 12),
+            SelectableText(userRoot, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            Text('Leakage index: ${indexFile.path}'),
+            const SizedBox(height: 8),
             Text('Leakage tasks: $count'),
           ],
         ),
@@ -185,8 +167,8 @@ class AccountTab extends ConsumerWidget {
       builder: (_) => AlertDialog(
         title: const Text('Clear leakage data?'),
         content: const Text(
-          'This will delete all leakage tasks for the current user on this device. '
-          'Your account remains.',
+          'This deletes all leakage tasks for the current user on this device. '
+          'Your account and Intro status will be kept.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -196,32 +178,19 @@ class AccountTab extends ConsumerWidget {
     );
     if (ok != true) return;
 
-    final user = ref.read(userProvider);
-    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
-
     final fs = ref.read(fileStorageServiceProvider);
-    final settings = LocalStorageService();
+    final user = ref.read(userProvider);
+    final uid = (user.uid?.isNotEmpty == true) ? user.uid! : 'local';
 
-    // Remove leakage module dir only
-    final leakageDir = await fs.moduleRootDir(uid, 'leakage'); // make sure this exists in service
+    final leakageDir = await fs.moduleRootDir(uid, 'leakage');
     if (await leakageDir.exists()) {
       await leakageDir.delete(recursive: true);
     }
-
-    // Reset in-memory list
     ref.read(leakageTaskListProvider.notifier).resetAll();
 
-    // Mark intro incomplete so user can redo if desired
-    final username = user.username;
-    if (username != null && username.isNotEmpty) {
-      await settings.saveBool('introCompleted_$username', false);
-      ref.read(userProvider.notifier).markIntroIncompleteForCurrent();
-    }
-
-    // Notify
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leakage data cleared for this user')),
+        const SnackBar(content: Text('Leakage data cleared')),
       );
     }
   }
@@ -232,8 +201,7 @@ class AccountTab extends ConsumerWidget {
       builder: (_) => AlertDialog(
         title: const Text('Clear ALL users & data?'),
         content: const Text(
-          'This will remove all registered users and all stored data on this device. '
-          'This cannot be undone.',
+          'This removes all local accounts and all stored data. This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -250,16 +218,12 @@ class AccountTab extends ConsumerWidget {
     final fs = ref.read(fileStorageServiceProvider);
     final auth = AuthService();
 
-    // Delete the whole /users folder mirror
-    final root = await fs.usersRootDir(); // make sure this exists in service
+    final root = await fs.usersRootDir();
     if (await root.exists()) {
       await root.delete(recursive: true);
     }
-
-    // Clear auth registry and flags
     await auth.clearAll();
 
-    // Reset providers and go to login
     ref.read(leakageTaskListProvider.notifier).resetAll();
     ref.read(userProvider.notifier).logout();
 
@@ -274,10 +238,9 @@ class AccountTab extends ConsumerWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String text;
-  const _SectionHeader(this.text, {Key? key}) : super(key: key);
+  const _SectionHeader(this.text, {super.key});
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
-        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
-      );
+  Widget build(BuildContext context) =>
+      Padding(padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall));
 }

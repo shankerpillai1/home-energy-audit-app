@@ -1,62 +1,57 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'settings_service.dart';
 
-/// Very simple auth service backed by FlutterSecureStorage.
-/// - Key "users" holds a JSON array of usernames.
-/// - Key "user:<username>" holds a hex(SHA-256(password)).
-/// This is NOT production-grade auth; it's sufficient for local demo/testing.
+/// Very simple local auth:
+/// - Registry: StringList under key 'users_registry'
+/// - Passwords: per-user 'pwd_<username>' (plain text for dev; swap to hash later)
 class AuthService {
-  static const _kUsersKey = 'users';
-  static const _kUserPrefix = 'user:'; // user:<username>
+  static const _kRegistryKey = 'users_registry';
+  static String _pwdKey(String u) => 'pwd_$u';
 
-  final FlutterSecureStorage _secure = const FlutterSecureStorage();
-
+  /// Return all registered usernames.
   Future<List<String>> getAllUsers() async {
-    final s = await _secure.read(key: _kUsersKey);
-    if (s == null || s.trim().isEmpty) return [];
-    final decoded = json.decode(s);
-    if (decoded is List) {
-      return decoded.whereType<String>().toList();
-    }
-    return [];
+    final prefs = await SharedPreferences.getInstance();
+    return List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
   }
 
+  Future<bool> _userExists(String username) async {
+    final list = await getAllUsers();
+    return list.contains(username);
+  }
+
+  /// Register new user. Returns false if username already exists.
   Future<bool> register(String username, String password) async {
-    final users = await getAllUsers();
-    if (users.contains(username)) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final list = List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
+    if (list.contains(username)) return false;
 
-    final hash = _hash(password);
-    await _secure.write(key: '$_kUserPrefix$username', value: hash);
-
-    users.add(username);
-    await _secure.write(key: _kUsersKey, value: json.encode(users));
+    list.add(username);
+    await prefs.setStringList(_kRegistryKey, list);
+    await prefs.setString(_pwdKey(username), password);
     return true;
   }
 
+  /// Validate login credentials.
   Future<bool> login(String username, String password) async {
-    final users = await getAllUsers();
-    if (!users.contains(username)) return false;
-    final stored = await _secure.read(key: '$_kUserPrefix$username');
-    if (stored == null) return false;
-    return stored == _hash(password);
+    final prefs = await SharedPreferences.getInstance();
+    if (!await _userExists(username)) return false;
+    final stored = prefs.getString(_pwdKey(username));
+    return stored == password;
   }
 
-  /// Remove all registered users and credentials from secure storage.
-  Future<void> clearAllUsers() async {
-    final users = await getAllUsers();
-    for (final u in users) {
-      await _secure.delete(key: '$_kUserPrefix$u');
-    }
-    await _secure.delete(key: _kUsersKey);
-    if (kDebugMode) {
-      // Optional: log
-    }
+  /// Delete a single user (registry entry + stored password).
+  Future<void> deleteUser(String username) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
+    list.remove(username);
+    await prefs.setStringList(_kRegistryKey, list);
+    await prefs.remove(_pwdKey(username));
   }
 
-  String _hash(String input) {
-    final bytes = utf8.encode(input);
-    return sha256.convert(bytes).toString();
+  /// Danger: clear ALL local users and all SharedPreferences.
+  /// Used by "Clear ALL users & data" in Account.
+  Future<void> clearAll() async {
+    // For simplicity in dev, nuke everything in SharedPreferences.
+    await SettingsService().clearAll();
   }
 }

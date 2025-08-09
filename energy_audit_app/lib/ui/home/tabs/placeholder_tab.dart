@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class PlaceholderTab extends StatelessWidget {
   final String title;
-  const PlaceholderTab({Key? key, required this.title}) : super(key: key);
+  const PlaceholderTab({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {

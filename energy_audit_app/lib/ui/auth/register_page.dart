@@ -6,7 +6,7 @@ import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
-  const RegisterPage({Key? key}) : super(key: key);
+  const RegisterPage({super.key});
 
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
@@ -137,10 +137,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     // Back to Login
                     TextButton(
                       onPressed: () => context.pop(),
-                      child: const Text('Back to login'),
                       style: TextButton.styleFrom(
                         textStyle: theme.textTheme.labelLarge,
                       ),
+                      child: const Text('Back to login'),
                     ),
                   ],
                 ),

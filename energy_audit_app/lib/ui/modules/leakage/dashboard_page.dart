@@ -13,7 +13,7 @@ import '../../../providers/user_provider.dart';
 import '../../../repositories/task_repository.dart';
 
 class LeakageDashboardPage extends ConsumerWidget {
-  const LeakageDashboardPage({Key? key}) : super(key: key);
+  const LeakageDashboardPage({super.key});
 
   Future<void> _debugPrintStore(BuildContext context, WidgetRef ref) async {
     final fs = ref.read(fileStorageServiceProvider);
@@ -291,7 +291,7 @@ class LeakageDashboardPage extends ConsumerWidget {
 class _TaskThumb extends ConsumerWidget {
   final LeakageTask task;
   final double size;
-  const _TaskThumb({Key? key, required this.task, this.size = 48}) : super(key: key);
+  const _TaskThumb({super.key, required this.task, this.size = 48});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -304,20 +304,20 @@ class _TaskThumb extends ConsumerWidget {
     }
 
     // Prefer the first image (usually RGB), otherwise fallback to any.
-    String? _firstImageRel() {
+    String? firstImageRel() {
       if (task.photoPaths.isEmpty) return null;
       return task.photoPaths.first;
     }
 
-    Future<String?> _absOrNull(String? relOrAbs) async {
+    Future<String?> absOrNull(String? relOrAbs) async {
       if (relOrAbs == null) return null;
       return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
     }
 
-    final rel = _firstImageRel();
+    final rel = firstImageRel();
 
     return FutureBuilder<String?>(
-      future: _absOrNull(rel),
+      future: absOrNull(rel),
       builder: (context, snap) {
         final path = snap.data;
         if (path == null || !File(path).existsSync()) {

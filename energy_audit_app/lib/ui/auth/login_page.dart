@@ -7,7 +7,7 @@ import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
