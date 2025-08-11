@@ -68,8 +68,6 @@
 
 # Home Energy Audit (Flutter)
 
-> Outline only — detailed content for each section will be filled in follow-up responses.
-
 ---
 
 ## Project Overview
