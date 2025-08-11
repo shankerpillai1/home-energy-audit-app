@@ -15,10 +15,27 @@ class LeakageReportPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(leakageTaskListProvider.notifier);
-    final task = ref.watch(leakageTaskListProvider).firstWhere((t) => t.id == taskId,
-        orElse: () => ref.read(leakageTaskListProvider.notifier).getById(taskId)!);
-    final report = task.report;
+    final list = ref.watch(leakageTaskListProvider);
 
+    // Safe lookup: from state, fallback to notifier.getById, then guard.
+    final task = list.firstWhere(
+      (t) => t.id == taskId,
+      orElse: () => notifier.getById(taskId) ?? _missingTaskFallback(),
+    );
+    if (task.id.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/leakage/dashboard'),
+          ),
+          title: const Text('Report'),
+        ),
+        body: const Center(child: Text('Task not found')),
+      );
+    }
+
+    final report = task.report;
     final cost = report?.energyLossCost ?? '--';
     final energy = report?.energyLossValue ?? '--';
     final sev = report?.leakSeverity ?? '--';
@@ -33,6 +50,33 @@ class LeakageReportPage extends ConsumerWidget {
           onPressed: () => context.go('/leakage/dashboard'),
         ),
         title: const Text('Report'),
+        actions: [
+          // Edit entry in AppBar.
+          // If currently CLOSED, confirm and reopen to OPEN (keep report), then go edit.
+          IconButton(
+            tooltip: 'Modify Submission',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () async {
+              if (task.state == LeakageTaskState.closed) {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Reopen as Open?'),
+                    content: const Text(
+                        'This report is closed. Editing will reopen it to Open (report preserved). Continue?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reopen')),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+                await notifier.markOpen(task.id);
+              }
+              if (context.mounted) context.go('/leakage/task/$taskId');
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -44,45 +88,20 @@ class LeakageReportPage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
 
-          // Modify button right under title
+          // Read-only status badge
+          _StatusBadge(state: task.state),
+          const SizedBox(height: 12),
+
+          // Keep THREE CARDS IN A ROW; guard against text overflow.
           Row(
             children: [
-              FilledButton.icon(
-                onPressed: () => context.go('/leakage/task/$taskId'),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Modify Submission'),
-              ),
-              const SizedBox(width: 12),
-              _StateChips(task: task, onChanged: (s) async {
-                switch (s) {
-                  case LeakageTaskState.draft:
-                    await notifier.markDraft(task.id);
-                    break;
-                  case LeakageTaskState.open:
-                    await notifier.markOpen(task.id);
-                    break;
-                  case LeakageTaskState.closed:
-                    await notifier.markClosed(task.id);
-                    break;
-                }
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('State updated')));
-                }
-              }),
+              Expanded(child: _SmallCard(title: 'Energy Loss', line1: cost, line2: energy)),
+              const SizedBox(width: 8),
+              Expanded(child: _SmallCard(title: 'Leak Severity', line1: sev, line2: '')),
+              const SizedBox(width: 8),
+              Expanded(child: _SmallCard(title: 'Potential Savings', line1: saveC, line2: saveP)),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // Three even cards (fix text overflow)
-          Row(children: [
-            Expanded(child: _SmallCard(title: 'Energy Loss', line1: cost, line2: energy)),
-            const SizedBox(width: 8),
-            Expanded(child: _SmallCard(title: 'Leak Severity', line1: sev, line2: '')),
-            const SizedBox(width: 8),
-            Expanded(child: _SmallCard(title: 'Potential Savings', line1: saveC, line2: saveP)),
-          ]),
 
           const SizedBox(height: 16),
 
@@ -90,46 +109,108 @@ class LeakageReportPage extends ConsumerWidget {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('No points available.',
-                    style: Theme.of(context).textTheme.bodyLarge),
+                child: Text('No points available.', style: Theme.of(context).textTheme.bodyLarge),
               ),
             )
           else
-            for (final pt in points) _ReportPointTile(point: pt),
+            Column(
+              children: points
+                  .map((pt) => _PointListTile(
+                        taskId: task.id,
+                        point: pt,
+                      ))
+                  .toList(),
+            ),
         ]),
+      ),
+
+      // Context-aware primary action at the bottom (single action to avoid overflow).
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: OverflowBar(
+            spacing: 12,
+            overflowAlignment: OverflowBarAlignment.center,
+            children: [
+              if (task.state == LeakageTaskState.open)
+                FilledButton(
+                  onPressed: () async {
+                    await notifier.markClosed(task.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked as closed')));
+                    }
+                  },
+                  child: const Text('Mark Closed'),
+                ),
+              if (task.state == LeakageTaskState.closed)
+                FilledButton(
+                  onPressed: () async {
+                    await notifier.markOpen(task.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reopened to Open')));
+                    }
+                  },
+                  child: const Text('Reopen'),
+                ),
+              if (task.state == LeakageTaskState.draft)
+                FilledButton(
+                  onPressed: () => context.go('/leakage/task/$taskId'),
+                  child: const Text('Edit & Submit'),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
+
+  // Bottom sheet for point details (keeps the original “slide up” UX).
+  void _showPointBottomSheet(BuildContext context, WidgetRef ref, LeakReportPoint p) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        builder: (ctx, scrollCtrl) {
+          return _PointDetailSheet(point: p);
+        },
+      ),
+    );
+  }
+
+  // Fallback for missing task id (safe guard)
+  LeakageTask _missingTaskFallback() => LeakageTask(
+        id: '',
+        title: '',
+        type: 'window',
+        state: LeakageTaskState.draft,
+      );
 }
 
-class _StateChips extends StatelessWidget {
-  final LeakageTask task;
-  final ValueChanged<LeakageTaskState> onChanged;
-
-  const _StateChips({super.key, required this.task, required this.onChanged});
+class _StatusBadge extends StatelessWidget {
+  final LeakageTaskState state;
+  const _StatusBadge({required this.state});
 
   @override
   Widget build(BuildContext context) {
-    final s = task.state;
-    return Wrap(
-      spacing: 8,
-      children: [
-        ChoiceChip(
-          label: const Text('Draft'),
-          selected: s == LeakageTaskState.draft,
-          onSelected: (_) => onChanged(LeakageTaskState.draft),
-        ),
-        ChoiceChip(
-          label: const Text('Open'),
-          selected: s == LeakageTaskState.open,
-          onSelected: (_) => onChanged(LeakageTaskState.open),
-        ),
-        ChoiceChip(
-          label: const Text('Closed'),
-          selected: s == LeakageTaskState.closed,
-          onSelected: (_) => onChanged(LeakageTaskState.closed),
-        ),
-      ],
+    final map = {
+      LeakageTaskState.draft: ('Draft', Colors.grey),
+      LeakageTaskState.open: ('Open', Colors.orange),
+      LeakageTaskState.closed: ('Closed', Colors.green),
+    };
+    final (label, color) = map[state]!;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Chip(
+        label: Text(label),
+        labelStyle: TextStyle(color: color.shade800),
+        backgroundColor: color.withOpacity(0.12),
+        side: BorderSide(color: color.withOpacity(0.24)),
+      ),
     );
   }
 }
@@ -166,20 +247,36 @@ class _SmallCard extends StatelessWidget {
   }
 }
 
-class _ReportPointTile extends ConsumerStatefulWidget {
+/// List tile for a detected point. Tap -> slide-up bottom sheet with details.
+class _PointListTile extends ConsumerWidget {
+  final String taskId;
   final LeakReportPoint point;
-  const _ReportPointTile({super.key, required this.point});
+  const _PointListTile({super.key, required this.taskId, required this.point});
 
   @override
-  ConsumerState<_ReportPointTile> createState() => _ReportPointTileState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        leading: _PointThumb(point: point),
+        title: Text(point.title),
+        subtitle: Text(point.subtitle),
+        trailing: const Icon(Icons.keyboard_arrow_up), // hint for slide-up detail
+        onTap: () {
+          (context.findAncestorWidgetOfExactType<LeakageReportPage>())
+              ?._showPointBottomSheet(context, ref, point);
+        },
+      ),
+    );
+  }
 }
 
-class _ReportPointTileState extends ConsumerState<_ReportPointTile> {
-  bool _expanded = false;
+class _PointThumb extends ConsumerWidget {
+  final LeakReportPoint point;
+  const _PointThumb({required this.point});
 
   @override
-  Widget build(BuildContext context) {
-    final p = widget.point;
+  Widget build(BuildContext context, WidgetRef ref) {
     final fs = ref.read(fileStorageServiceProvider);
     final user = ref.read(userProvider);
     final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
@@ -189,38 +286,53 @@ class _ReportPointTileState extends ConsumerState<_ReportPointTile> {
       return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
     }
 
-    Widget buildThumb() {
-      // square thumbnail for clarity
-      return FutureBuilder<String?>(
-        future: absOrNull(p.thumbPath ?? p.imagePath),
-        builder: (context, snap) {
-          final path = snap.data;
-          if (path == null || !File(path).existsSync()) {
-            return const SizedBox(
-              width: 56,
-              height: 56,
-              child: DecoratedBox(
-                decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
-                child: Icon(Icons.image_not_supported),
-              ),
-            );
-          }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Image.file(File(path), width: 56, height: 56, fit: BoxFit.cover),
+    return FutureBuilder<String?>(
+      future: absOrNull(point.thumbPath ?? point.imagePath),
+      builder: (context, snap) {
+        final path = snap.data;
+        if (path == null || !File(path).existsSync()) {
+          return const SizedBox(
+            width: 56,
+            height: 56,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
+              child: Icon(Icons.image_not_supported),
+            ),
           );
-        },
-      );
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(File(path), width: 56, height: 56, fit: BoxFit.cover),
+        );
+      },
+    );
+  }
+}
+
+/// Slide-up sheet content: marked image + suggestions.
+class _PointDetailSheet extends ConsumerWidget {
+  final LeakReportPoint point;
+  const _PointDetailSheet({required this.point});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fs = ref.read(fileStorageServiceProvider);
+    final user = ref.read(userProvider);
+    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+
+    Future<String?> absOrNull(String? relOrAbs) async {
+      if (relOrAbs == null) return null;
+      return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
     }
 
     Widget buildMarkedImage() {
       return FutureBuilder<String?>(
-        future: absOrNull(p.imagePath),
+        future: absOrNull(point.imagePath),
         builder: (context, snap) {
           final path = snap.data;
           if (path == null || !File(path).existsSync()) {
             return Container(
-              height: 240,
+              height: 260,
               color: Colors.grey.shade200,
               child: const Center(child: Icon(Icons.image, size: 48)),
             );
@@ -229,40 +341,37 @@ class _ReportPointTileState extends ConsumerState<_ReportPointTile> {
             aspectRatio: 1,
             child: Stack(
               children: [
-                Positioned.fill(
-                  child: Image.file(File(path), fit: BoxFit.contain),
-                ),
-                if (p.markerX != null &&
-                    p.markerY != null &&
-                    p.markerW != null &&
-                    p.markerH != null)
-                  LayoutBuilder(builder: (ctx, c) {
-                    final x = p.markerX!.clamp(0.0, 1.0) * c.maxWidth;
-                    final y = p.markerY!.clamp(0.0, 1.0) * c.maxHeight;
-                    final w = p.markerW!.clamp(0.0, 1.0) * c.maxWidth;
-                    final h = p.markerH!.clamp(0.0, 1.0) * c.maxHeight;
-                    return Positioned(
-                      left: x,
-                      top: y,
-                      width: w,
-                      height: h,
-                      child: IgnorePointer(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 3,
+                Positioned.fill(child: Image.file(File(path), fit: BoxFit.contain)),
+                if (point.markerX != null &&
+                    point.markerY != null &&
+                    point.markerW != null &&
+                    point.markerH != null)
+                  LayoutBuilder(
+                    builder: (ctx, c) {
+                      final x = point.markerX!.clamp(0.0, 1.0) * c.maxWidth;
+                      final y = point.markerY!.clamp(0.0, 1.0) * c.maxHeight;
+                      final w = point.markerW!.clamp(0.0, 1.0) * c.maxWidth;
+                      final h = point.markerH!.clamp(0.0, 1.0) * c.maxHeight;
+                      return Positioned(
+                        left: x,
+                        top: y,
+                        width: w,
+                        height: h,
+                        child: IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 3,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
                             ),
-                            borderRadius: BorderRadius.circular(4),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withOpacity(0.08),
                           ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
               ],
             ),
           );
@@ -271,51 +380,57 @@ class _ReportPointTileState extends ConsumerState<_ReportPointTile> {
     }
 
     Widget buildSuggestions() {
-      final items = p.suggestions;
+      final items = point.suggestions;
       if (items.isEmpty) return const SizedBox.shrink();
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: items.map((s) {
+          final lines = <String>[];
+          if (s.costRange != null && s.costRange!.isNotEmpty) lines.add('Cost: ${s.costRange}');
+          if (s.difficulty != null && s.difficulty!.isNotEmpty) lines.add(' | ${s.difficulty}');
+          if (s.lifetime != null && s.lifetime!.isNotEmpty) lines.add('\n${s.lifetime}');
+          if (s.estimatedReduction != null && s.estimatedReduction!.isNotEmpty) {
+            lines.add('\nEstimated reduction: ${s.estimatedReduction}');
+          }
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 8),
             child: ListTile(
               title: Text(s.title),
-              subtitle: Text([
-                if (s.costRange != null) 'Cost: ${s.costRange}',
-                if (s.difficulty != null) ' | ${s.difficulty}',
-                if (s.lifetime != null) '\n${s.lifetime}',
-                if (s.estimatedReduction != null)
-                  '\nEstimated reduction: ${s.estimatedReduction}',
-              ].join()),
-              trailing: IconButton(
-                onPressed: () {
-                  // TODO: add to To-Do list
-                },
-                icon: const Icon(Icons.favorite_border),
-              ),
+              subtitle: lines.isEmpty ? null : Text(lines.join()),
             ),
           );
         }).toList(),
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(children: [
-        ListTile(
-          leading: buildThumb(),
-          title: Text(p.title),
-          subtitle: Text(p.subtitle),
-          // removed chevron; tap toggles expansion
-          onTap: () => setState(() => _expanded = !_expanded),
+    return Material(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: ListView(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(point.title, style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(point.subtitle),
+              const SizedBox(height: 12),
+              buildMarkedImage(),
+              const SizedBox(height: 12),
+              buildSuggestions(),
+            ],
+          ),
         ),
-        if (_expanded) ...[
-          const SizedBox(height: 8),
-          buildMarkedImage(),
-          const SizedBox(height: 8),
-          buildSuggestions(),
-          const SizedBox(height: 8),
-        ],
-      ]),
+      ),
     );
   }
 }

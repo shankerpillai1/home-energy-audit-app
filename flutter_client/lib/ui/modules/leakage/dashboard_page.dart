@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart'; // debugPrint
 import 'package:flutter/material.dart';
@@ -79,7 +80,7 @@ class LeakageDashboardPage extends ConsumerWidget {
             child: ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('How to Perform a Leakage Test'),
-              subtitle: const Text('Swipe a task left to Delete. Use state chips to Open/Close.'),
+              subtitle: const Text('Swipe a task left to Delete. Use state menu to switch Draft/Open/Closed.'),
               onTap: () {},
             ),
           ),
@@ -93,7 +94,15 @@ class LeakageDashboardPage extends ConsumerWidget {
               title: const Text('Start New Leak Test'),
               onTap: () {
                 final id = DateTime.now().microsecondsSinceEpoch.toString();
-                notifier.upsertTask(LeakageTask(id: id, title: '', type: '', state: LeakageTaskState.draft));
+                // Provide sensible defaults for better first-run UX.
+                notifier.upsertTask(
+                  LeakageTask(
+                    id: id,
+                    title: 'Untitled Task',
+                    type: 'window',
+                    state: LeakageTaskState.draft,
+                  ),
+                );
                 context.push('/leakage/task/$id');
               },
             ),
@@ -101,100 +110,197 @@ class LeakageDashboardPage extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // State buckets -> open bottom sheets (no inline expansion)
+          // State buckets -> open bottom sheets (live lists)
           _BucketCard(
             icon: Icons.edit_note,
             title: 'Draft',
             count: drafts.length,
-            onTap: () => _showTaskListSheet(context, ref, 'Draft', drafts),
+            onTap: () => _openBucketSheet(context, LeakageTaskState.draft),
           ),
           const SizedBox(height: 12),
           _BucketCard(
             icon: Icons.play_circle_outline,
             title: 'Open',
             count: opens.length,
-            onTap: () => _showTaskListSheet(context, ref, 'Open', opens),
+            onTap: () => _openBucketSheet(context, LeakageTaskState.open),
           ),
           const SizedBox(height: 12),
           _BucketCard(
             icon: Icons.check_circle_outline,
             title: 'Closed',
             count: closeds.length,
-            onTap: () => _showTaskListSheet(context, ref, 'Closed', closeds),
+            onTap: () => _openBucketSheet(context, LeakageTaskState.closed),
           ),
         ],
       ),
     );
   }
 
-  void _showTaskListSheet(
-    BuildContext context,
-    WidgetRef ref,
-    String title,
-    List<LeakageTask> tasks,
-  ) {
-    final notifier = ref.read(leakageTaskListProvider.notifier);
-    final fs = ref.read(fileStorageServiceProvider);
-    final user = ref.read(userProvider);
-    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
-
-    Future<Widget> thumb(LeakageTask t) async {
-      // Choose the first RGB (even index) else any
-      String? rel;
-      for (int i = 0; i < t.photoPaths.length; i++) {
-        if (i % 2 == 0) {
-          rel = t.photoPaths[i];
-          break;
-        }
-      }
-      rel ??= t.photoPaths.isNotEmpty ? t.photoPaths.first : null;
-      if (rel == null) {
-        return const SizedBox(
-          width: 56,
-          height: 56,
-          child: DecoratedBox(
-            decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
-            child: Icon(Icons.image_not_supported),
-          ),
-        );
-      }
-      final abs = await fs.resolveModuleAbsolute(uid, 'leakage', rel);
-      if (!File(abs).existsSync()) {
-        return const SizedBox(
-          width: 56,
-          height: 56,
-          child: DecoratedBox(
-            decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
-            child: Icon(Icons.image_not_supported),
-          ),
-        );
-      }
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.file(File(abs), width: 56, height: 56, fit: BoxFit.cover),
-      );
-    }
-
+  void _openBucketSheet(BuildContext context, LeakageTaskState bucket) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.66,
-        minChildSize: 0.38,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollCtrl) {
-          return Column(
-            children: [
-              ListTile(
-                title: Text('$title Tasks', style: Theme.of(ctx).textTheme.titleMedium),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
+      builder: (_) => _TaskListSheet(bucket: bucket),
+    );
+  }
+}
+
+class _TaskListSheet extends ConsumerStatefulWidget {
+  final LeakageTaskState bucket;
+  const _TaskListSheet({required this.bucket});
+
+  @override
+  ConsumerState<_TaskListSheet> createState() => _TaskListSheetState();
+}
+
+class _TaskListSheetState extends ConsumerState<_TaskListSheet> {
+  // In-sheet undo banner state
+  String? _pendingUndoId;
+  String _pendingUndoTitle = '';
+  Timer? _undoHideTimer;
+
+  static const Duration _undoWindow = Duration(seconds: 5);
+
+  @override
+  void dispose() {
+    _undoHideTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<Widget> _thumb(LeakageTask t) async {
+    final fs = ref.read(fileStorageServiceProvider);
+    final user = ref.read(userProvider);
+    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+
+    // Choose the first RGB (even index) else any
+    String? rel;
+    for (int i = 0; i < t.photoPaths.length; i++) {
+      if (i % 2 == 0) {
+        rel = t.photoPaths[i];
+        break;
+      }
+    }
+    rel ??= t.photoPaths.isNotEmpty ? t.photoPaths.first : null;
+
+    if (rel == null) {
+      return const SizedBox(
+        width: 56,
+        height: 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
+          child: Icon(Icons.image_not_supported),
+        ),
+      );
+    }
+    final abs = await fs.resolveModuleAbsolute(uid, 'leakage', rel);
+    if (!File(abs).existsSync()) {
+      return const SizedBox(
+        width: 56,
+        height: 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
+          child: Icon(Icons.image_not_supported),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.file(File(abs), width: 56, height: 56, fit: BoxFit.cover),
+    );
+  }
+
+  void _showUndoBanner(String id, String title) {
+    _undoHideTimer?.cancel();
+    setState(() {
+      _pendingUndoId = id;
+      _pendingUndoTitle = title;
+    });
+    _undoHideTimer = Timer(_undoWindow, () {
+      if (mounted) {
+        setState(() {
+          _pendingUndoId = null;
+          _pendingUndoTitle = '';
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final all = ref.watch(leakageTaskListProvider);
+    final tasks = all.where((t) => t.state == widget.bucket).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.66,
+      minChildSize: 0.38,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollCtrl) {
+        return Column(
+          children: [
+            ListTile(
+              title: Text('${_bucketTitle(widget.bucket)} Tasks', style: Theme.of(ctx).textTheme.titleMedium),
+              trailing: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(ctx),
               ),
-              const Divider(height: 1),
+            ),
+
+            // In-sheet undo banner (visible above the list, not hidden by the sheet)
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: (_pendingUndoId == null)
+                  ? const SizedBox.shrink()
+                  : Container(
+                      key: const ValueKey('undo-banner'),
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.inversePrimary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Theme.of(context).colorScheme.inversePrimary),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text('Deleted "${_pendingUndoTitle}"', maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () async {
+                              final id = _pendingUndoId!;
+                              await ref.read(leakageTaskListProvider.notifier).undoDelete(id);
+                              if (!mounted) return;
+                              setState(() {
+                                _pendingUndoId = null;
+                                _pendingUndoTitle = '';
+                              });
+                            },
+                            child: const Text('UNDO'),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+
+            const Divider(height: 1),
+
+            if (tasks.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.inbox, size: 40, color: Colors.grey),
+                      const SizedBox(height: 8),
+                      Text('No tasks in this bucket', style: Theme.of(ctx).textTheme.bodyLarge),
+                    ],
+                  ),
+                ),
+              )
+            else
               Expanded(
                 child: ListView.separated(
                   controller: scrollCtrl,
@@ -206,20 +312,24 @@ class LeakageDashboardPage extends ConsumerWidget {
                       key: Key('sheet-${t.id}'),
                       endActionPane: ActionPane(
                         motion: const DrawerMotion(),
-                        extentRatio: 0.22,
+                        extentRatio: 0.18, // compact, icon-only
                         children: [
-                          SlidableAction(
-                            onPressed: (_) => ref.read(leakageTaskListProvider.notifier).deleteTask(t.id),
+                          CustomSlidableAction(
+                            onPressed: (_) async {
+                              final title = t.title.isEmpty ? 'Untitled Task' : t.title;
+                              // Soft delete with undo window (provider handles delayed physical delete).
+                              ref.read(leakageTaskListProvider.notifier).scheduleDeleteWithUndo(t.id);
+                              // Show in-sheet undo banner so it's not hidden by the bottom sheet.
+                              _showUndoBanner(t.id, title);
+                            },
                             backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            icon: Icons.delete,
-                            label: 'Delete',
+                            child: const Icon(Icons.delete, color: Colors.white),
                           ),
                         ],
                       ),
                       child: ListTile(
                         leading: FutureBuilder<Widget>(
-                          future: thumb(t),
+                          future: _thumb(t),
                           builder: (c, s) => s.data ?? const SizedBox(width: 56, height: 56),
                         ),
                         title: Text(t.title.isEmpty ? 'Untitled Task' : t.title),
@@ -232,6 +342,7 @@ class LeakageDashboardPage extends ConsumerWidget {
                           }
                         },
                         trailing: _StateQuickActions(task: t, onChange: (newState) async {
+                          final notifier = ref.read(leakageTaskListProvider.notifier);
                           switch (newState) {
                             case LeakageTaskState.draft:
                               await notifier.markDraft(t.id);
@@ -249,11 +360,21 @@ class LeakageDashboardPage extends ConsumerWidget {
                   },
                 ),
               ),
-            ],
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
+  }
+
+  String _bucketTitle(LeakageTaskState s) {
+    switch (s) {
+      case LeakageTaskState.draft:
+        return 'Draft';
+      case LeakageTaskState.open:
+        return 'Open';
+      case LeakageTaskState.closed:
+        return 'Closed';
+    }
   }
 }
 

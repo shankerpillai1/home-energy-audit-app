@@ -30,6 +30,9 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
   bool _saving = false;
   bool _submitting = false;
 
+  // Keep a handle to progress sheet context so we can close it programmatically.
+  BuildContext? _progressSheetContext;
+
   @override
   void initState() {
     super.initState();
@@ -86,7 +89,45 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
     }
   }
 
+  /// Show a dismissible bottom sheet with an indeterminate progress indicator.
+  void _showProgressSheet() {
+    _progressSheetContext = null;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: false,
+      isDismissible: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        _progressSheetContext = ctx;
+        return const _AnalyzingSheet();
+      },
+    ).whenComplete(() {
+      // When user swipes it down, we just clear the handle.
+      _progressSheetContext = null;
+    });
+  }
+
+  /// Close progress sheet if still shown.
+  void _closeProgressSheetIfAny() {
+    final c = _progressSheetContext;
+    if (c != null) {
+      // Try to pop only the sheet route.
+      Navigator.of(c).maybePop();
+      _progressSheetContext = null;
+    }
+  }
+
   Future<void> _submitAndAnalyze() async {
+    // Optional: simple validation hint (at least one image)
+    final hasAnyImage = _obs.any((o) => o.rgbRel != null || o.thermalRel != null);
+    if (!hasAnyImage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one image')),
+      );
+      return;
+    }
+
+    // Ask for a temporary "detected points" number (for mock/dry-run parity).
     final count = await showDialog<int>(
       context: context,
       builder: (ctx) {
@@ -96,8 +137,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
           content: TextField(
             controller: ctrl,
             keyboardType: TextInputType.number,
-            decoration:
-                const InputDecoration(labelText: 'How many leak points?'),
+            decoration: const InputDecoration(labelText: 'How many leak points?'),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -115,13 +155,33 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
     if (count == null) return;
 
     setState(() => _submitting = true);
+    _showProgressSheet();
+
     try {
-      await _saveLocally(); // persist draft edits
+      // Persist draft edits first.
+      await _saveLocally();
+
+      // Kick off the analysis (mock or HTTP dry-run based on providers).
+      // We await it here to keep a single submission pipeline; the UI remains usable,
+      // and the user can dismiss the progress sheet anytime.
       await ref
           .read(leakageTaskListProvider.notifier)
           .submitForAnalysis(widget.taskId, detectedCount: count);
+
+      // On success: close the progress sheet and navigate to report.
+      _closeProgressSheetIfAny();
       if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report ready')),
+      );
       context.go('/leakage/report/${widget.taskId}');
+    } catch (e) {
+      _closeProgressSheetIfAny();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Analysis failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -196,7 +256,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
                       ? const SizedBox(
                           height: 16, width: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save Locally'),
+                      : const Text('Save'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -209,7 +269,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.cloud_upload),
-                  label: Text(_submitting ? 'Submitting...' : 'Submit & Analyze'),
+                  label: Text(_submitting ? 'Analyzing…' : 'Analyze'),
                 ),
               ),
             ],
@@ -370,6 +430,47 @@ class _ObservationCard extends ConsumerWidget {
             ]),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Simple, dismissible progress UI shown during analysis.
+class _AnalyzingSheet extends StatelessWidget {
+  const _AnalyzingSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 4),
+          Container(
+            width: 44, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.black26, borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text('Analyzing your submission…', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            'You can swipe down to continue using the app. We will open the report when it is ready.',
+            style: textTheme.bodyMedium, textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.keyboard_arrow_down),
+            label: const Text('Hide'),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
