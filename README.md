@@ -396,8 +396,3 @@ See `lib/` tree in the repo. Key areas:
 * **2025-08**: Leakage v1 with draft/open/closed lifecycle, mock backend, per-task JSON, bottom-sheet lists, and report UI.
 * **2025-07**: Bottom tabs, Assistant integration, initial auth + intro scaffold.
 * **2025-06**: Project bootstrapped; theme + routing skeleton.
-
-## Author
-
-**Bairun Chen**  
-Email: bac128@pitt.edu
