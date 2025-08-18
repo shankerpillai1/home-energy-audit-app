@@ -265,7 +265,7 @@ class _TaskListSheetState extends ConsumerState<_TaskListSheet> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text('Deleted "${_pendingUndoTitle}"', maxLines: 1, overflow: TextOverflow.ellipsis),
+                            child: Text('Deleted "$_pendingUndoTitle"', maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
                           const SizedBox(width: 8),
                           TextButton(
@@ -385,7 +385,6 @@ class _BucketCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _BucketCard({
-    super.key,
     required this.icon,
     required this.title,
     required this.count,
@@ -412,7 +411,7 @@ class _StateQuickActions extends StatelessWidget {
   final LeakageTask task;
   final ValueChanged<LeakageTaskState> onChange;
 
-  const _StateQuickActions({super.key, required this.task, required this.onChange});
+  const _StateQuickActions({required this.task, required this.onChange});
 
   @override
   Widget build(BuildContext context) {

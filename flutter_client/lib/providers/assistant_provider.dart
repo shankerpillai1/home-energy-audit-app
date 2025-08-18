@@ -1,25 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/todo_item.dart';
+import 'todo_provider.dart';
 
-/// 单条聊天消息
+/// Represents a single message in the chat conversation.
 class ChatMessage {
   final String text;
   final bool isUser;
   ChatMessage(this.text, {this.isUser = false});
 }
 
-/// 对话节点：显示文本 + 下方选项
+/// Represents a node in the conversational flow.
+/// Contains the assistant's response text and the user's reply options.
 class FlowNode {
   final String text;
   final List<String> options;
   FlowNode(this.text, this.options);
 }
 
-/// Assistant 状态：消息 + 当前选项 + 当前节点 + 已完成模块集合
+/// Represents the state of the Assistant feature.
 class AssistantState {
   final List<ChatMessage> messages;
   final List<String> options;
   final String currentNodeId;
-  final Set<String> doneModules;
+  final Set<String> doneModules; // Tracks modules the user has marked as complete.
 
   AssistantState({
     required this.messages,
@@ -43,9 +46,14 @@ class AssistantState {
   }
 }
 
+/// Manages the state and logic of the conversational assistant.
 class AssistantNotifier extends StateNotifier<AssistantState> {
-  AssistantNotifier() : super(_initialState);
+  // A reference to the Riverpod Ref, allowing this notifier to read other providers.
+  final Ref _ref;
 
+  AssistantNotifier(this._ref) : super(_initialState);
+
+  // Static definition of the conversation flow.
   static const _carbonEntry = 'Save money and carbon footprint';
   static final List<String> _carbonOptions = [
     'Replace light bulbs with LED bulbs',
@@ -74,7 +82,6 @@ Before getting into the details, there are three retrofits that are relatively c
 ''',
       _carbonOptions,
     ),
-    // Seal Air Leaks 分支 —— 与 LED 分支并列
     'Seal Air Leaks': FlowNode(
       'Seal Air Leaks allows conditioned air to escape through cracks in your home envelope...',
       [
@@ -83,7 +90,6 @@ Before getting into the details, there are three retrofits that are relatively c
         'Learn more and get help',
       ],
     ),
-    // LED 分支
     'Replace light bulbs with LED bulbs': FlowNode(
       'Replace light bulbs with LED bulbs:',
       [
@@ -92,7 +98,6 @@ Before getting into the details, there are three retrofits that are relatively c
         'Learn more and get help',
       ],
     ),
-    // Thermostat 分支
     'Thermostat Settings': FlowNode(
       'Thermostat Settings:',
       [
@@ -101,13 +106,13 @@ Before getting into the details, there are three retrofits that are relatively c
         'Learn more and get help',
       ],
     ),
-    // Other 分支
     'Find other ways to save energy and money': FlowNode(
       'Do you have:\n• Central AC\n• Window AC\n• More than one fridge...\n• Electric vehicle',
       [],
     ),
   };
 
+  // The initial state of the assistant when a new conversation starts.
   static final AssistantState _initialState = AssistantState(
     messages: [ChatMessage(_flow['INIT']!.text)],
     options: _flow['INIT']!.options,
@@ -115,47 +120,48 @@ Before getting into the details, there are three retrofits that are relatively c
     doneModules: <String>{},
   );
 
-  /// 用户点击某个选项
+  /// Handles user interaction when an option [label] is tapped.
   void onTap(String label) {
-    // **移除** 对 'Seal Air Leaks' 的早期 return，
-    // 让它像 LED 一样被 FlowNode 捕获并在对话框内展示
+    // **INTEGRATION POINT**: Handle "I've already done this" options.
+    // This now also removes the corresponding item from the to-do list.
+    if ((state.currentNodeId == 'Seal Air Leaks' && label == 'I’ve already done this') ||
+        (state.currentNodeId == 'Replace light bulbs with LED bulbs' &&
+            label == 'I’ve already replaced all my bulbs—don’t remind me again')) {
+      final moduleName = state.currentNodeId;
+      final newDone = {...state.doneModules, moduleName};
 
-    // 处理“已完成”选项
-    if (state.currentNodeId == 'Seal Air Leaks' &&
-        label == 'I’ve already done this') {
-      final newDone = {...state.doneModules, 'Seal Air Leaks'};
+      // Remove the corresponding item from the to-do list by its title.
+      _ref.read(todoListProvider.notifier).removeItemByTitle(moduleName);
+
       _goBackToCarbon(
         userLabel: label,
-        ackText: 'Great, I have noted you’ve done seal air leaks.',
+        ackText: 'Great, I have noted you’ve done this and removed it from your projects.',
         doneModules: newDone,
       );
       return;
     }
-    // LED 的“已完成”选项
-    if (state.currentNodeId == 'Replace light bulbs with LED bulbs' &&
-        label == 'I’ve already replaced all my bulbs—don’t remind me again') {
-      final newDone = {...state.doneModules, 'Replace light bulbs with LED bulbs'};
-      _goBackToCarbon(
-        userLabel: label,
-        ackText: 'Understood. I won’t remind you about LED bulbs again.',
-        doneModules: newDone,
-      );
-      return;
-    }
-    // “加入待办”都回到 Carbon
+
+    // **INTEGRATION POINT**: Handle "Keep this on my to-do list" options.
     if ((state.currentNodeId == 'Seal Air Leaks' ||
          state.currentNodeId == 'Replace light bulbs with LED bulbs' ||
          state.currentNodeId == 'Thermostat Settings') &&
         label == 'Keep this on my to-do list') {
+      
+      // Add the item to the to-do list via the provider.
+      _ref.read(todoListProvider.notifier).addItem(
+        title: state.currentNodeId, // Use the node title as the to-do title
+        type: TodoItemType.project, // These are categorized as projects
+      );
+
       _goBackToCarbon(
         userLabel: label,
-        ackText: 'Done! Added to your to‑do list.',
+        ackText: 'Done! I\'ve added "${state.currentNodeId}" to your to-do list.',
         doneModules: state.doneModules,
       );
       return;
     }
 
-    // **常规对话推进**，包括 Seal Air Leaks
+    // Handle normal conversation progression.
     final node = _flow[label];
     if (node != null) {
       final msgs1 = [
@@ -174,7 +180,7 @@ Before getting into the details, there are three retrofits that are relatively c
     }
   }
 
-  /// 回到 Carbon 分支，并过滤掉 doneModules
+  /// Navigates the conversation back to the main carbon options menu.
   void _goBackToCarbon({
     required String userLabel,
     required String ackText,
@@ -182,6 +188,7 @@ Before getting into the details, there are three retrofits that are relatively c
   }) {
     final msgs1 = [...state.messages, ChatMessage(userLabel, isUser: true)];
     final msgs2 = [...msgs1, ChatMessage(ackText, isUser: false)];
+    // Filter out options that the user has marked as done.
     final filtered = _carbonOptions
         .where((opt) => !doneModules.contains(opt))
         .toList();
@@ -193,11 +200,13 @@ Before getting into the details, there are three retrofits that are relatively c
     );
   }
 
-  /// 重置对话
+  /// Resets the conversation to its initial state.
   void reset() => state = _initialState;
 }
 
+/// The provider for the [AssistantNotifier].
 final assistantProvider =
     StateNotifierProvider<AssistantNotifier, AssistantState>(
-  (_) => AssistantNotifier(),
+  // Pass the ref to the notifier so it can read other providers.
+  (ref) => AssistantNotifier(ref),
 );

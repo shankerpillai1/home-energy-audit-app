@@ -217,7 +217,7 @@ class _StatusBadge extends StatelessWidget {
 
 class _SmallCard extends StatelessWidget {
   final String title, line1, line2;
-  const _SmallCard({super.key, required this.title, required this.line1, required this.line2});
+  const _SmallCard({required this.title, required this.line1, required this.line2});
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +251,7 @@ class _SmallCard extends StatelessWidget {
 class _PointListTile extends ConsumerWidget {
   final String taskId;
   final LeakReportPoint point;
-  const _PointListTile({super.key, required this.taskId, required this.point});
+  const _PointListTile({required this.taskId, required this.point});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

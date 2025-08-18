@@ -1,23 +1,23 @@
 # Developer Deep Dive (Addendum)
 
-> This addendum complements the main README. It focuses on concrete code, JSON schemas, and extension points. Cross‑references point back to sections in the main doc where relevant.
+This addendum complements the main README. It focuses on concrete code, JSON schemas, and extension points. Cross‑references point back to sections in the main doc where relevant.
 
----
+## Directory Tree (`lib/`)
 
-## Directory Tree (lib/)
-
-```text
+```
 lib/
 ├─ app.dart
 ├─ main.dart
 ├─ config/
 │  └─ themes.dart
 ├─ models/
-│  └─ leakage_task.dart
+│  ├─ leakage_task.dart
+│  └─ todo_item.dart
 ├─ providers/
 │  ├─ repository_providers.dart
 │  ├─ leakage_task_provider.dart
-│  └─ user_provider.dart
+│  ├─ user_provider.dart
+│  └─ todo_provider.dart
 ├─ repositories/
 │  ├─ task_repository.dart
 │  └─ file_backed_task_repository.dart
@@ -37,24 +37,34 @@ lib/
 │  ├─ home/
 │  │  ├─ home_page.dart
 │  │  └─ tabs/
-│  │     ├─ dashboard_tab.dart
+│  │     ├─ home_tab.dart
 │  │     ├─ retrofits_tab.dart
 │  │     ├─ account_tab.dart
 │  │     └─ placeholder_tab.dart
-│  └─ modules/
-│     └─ leakage/
-│        ├─ dashboard_page.dart
-│        ├─ task_page.dart
-│        └─ report_page.dart
+│  └─ retrofits/
+│     ├─ leakage/
+│     │  ├─ dashboard_page.dart
+│     │  ├─ task_page.dart
+│     │  └─ report_page.dart
+│     ├─ led/
+│     │  └─ led_page.dart
+│     └─ thermostat/
+│        └─ thermostat_page.dart
 └─ utils/
    └─ router_refresh.dart
 ```
 
----
+## To-Do & Reminders System
+
+The interactive To-Do list on the Home tab is managed by a dedicated provider and a simple data model, ensuring persistence and reactivity.
+
+*   **Data Model (`TodoItem`):** Located in `lib/models/todo_item.dart`, this class defines the structure for all tasks and reminders. It includes properties like `id`, `title`, `type` (project or reminder), `isDone`, an optional `dueDate`, and `priority`. It supports JSON serialization for storage.
+*   **State Management (`TodoListNotifier`):** The `lib/providers/todo_provider.dart` file contains the `TodoListNotifier`. This Riverpod provider manages the `List<TodoItem>`. It handles all business logic: loading from storage, adding, removing, and toggling the completion status of items.
+*   **Persistence:** The entire list of to-do items is serialized into a single JSON string. This string is then saved to the device's local storage using the `shared_preferences` package, under a user-specific key (`todo_list_<uid>`). This ensures each user has their own private list and that the data persists across app sessions.
 
 ## JSON Schemas & Examples
 
-### Single Task File (users/<uid>/leakage/tasks/<taskId>.json)
+### Single Task File (`users/<uid>/leakage/tasks/<taskId>.json`)
 
 ```json
 {
@@ -100,18 +110,40 @@ lib/
 }
 ```
 
-### Module Index (users/<uid>/leakage/index.json)
+### Module Index (`users/<uid>/leakage/index.json`)
 
-> Maintained by the file‑backed repository for quick inspection (source of truth is per‑task JSON files).
+Maintained by the file‑backed repository for quick inspection (source of truth is per‑task JSON files).
 
 ```json
 [
   { "id": "...", "title": "...", "state": "draft", "createdAt": "..." },
   { "id": "...", "title": "...", "state": "open",  "createdAt": "..." }
+]```
+
+### To-Do List (`SharedPreferences todo_list_<uid>`)
+
+The entire list of `TodoItem` objects is serialized into a single JSON string and stored under a user-specific key.
+
+```json
+[
+  {
+    "id": "uuid-string-1",
+    "title": "Seal Air Leaks",
+    "type": "project",
+    "isDone": false,
+    "dueDate": null,
+    "priority": 1
+  },
+  {
+    "id": "uuid-string-2",
+    "title": "Clean refrigerator coils",
+    "type": "reminder",
+    "isDone": false,
+    "dueDate": "2025-08-17T15:00:00.000Z",
+    "priority": 1
+  }
 ]
 ```
-
----
 
 ## Provider Wiring (Riverpod)
 
@@ -168,8 +200,6 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
 }
 ```
 
----
-
 ## GoRouter Snippets
 
 ```dart
@@ -177,8 +207,6 @@ GoRoute(path: '/leakage/dashboard', builder: (_, __) => const LeakageDashboardPa
 GoRoute(path: '/leakage/task/:id', builder: (ctx, st) => LeakageTaskPage(taskId: st.pathParameters['id']!)),
 GoRoute(path: '/leakage/report/:id', builder: (ctx, st) => LeakageReportPage(taskId: st.pathParameters['id']!)),
 ```
-
----
 
 ## File Storage Service (key API)
 
@@ -193,42 +221,41 @@ Future<String?> resolveModuleAbsolute(String uid, String module, String? relativ
 Future<void> deleteTaskMedia(String uid, String module, String taskId);
 ```
 
-> Media paths saved in `LeakageTask.photoPaths` are module‑relative. UI resolves with `resolveModuleAbsolute()`.
-
----
+*Media paths saved in `LeakageTask.photoPaths` are module‑relative. UI resolves with `resolveModuleAbsolute()`.*
 
 ## Mock Backend → Real HTTP Swap
 
-* Keep the `LeakReport` return type stable.
-* Replace the body of `BackendApiService.analyzeLeakageTask()` with:
-
-  1. Upload media referenced by `task.photoPaths`.
-  2. POST a job request; poll for results or receive a webhook.
-  3. Map the backend payload into `LeakReport`/`LeakReportPoint`/`LeakSuggestion`.
-* Handle partial failures with retries; store a job status field on the task if needed (e.g., `analysisStatus: queued|running|done|error`).
-
----
+1.  Keep the `LeakReport` return type stable.
+2.  Replace the body of `BackendApiService.analyzeLeakageTask()` with:
+    *   Upload media referenced by `task.photoPaths`.
+    *   POST a job request; poll for results or receive a webhook.
+    *   Map the backend payload into `LeakReport`/`LeakReportPoint`/`LeakSuggestion`.
+    *   Handle partial failures with retries; store a job status field on the task if needed (e.g., `analysisStatus: queued|running|done|error`).
 
 ## Bottom Sheets UX (Patterns)
 
-* Use `showModalBottomSheet` with `isScrollControlled: true` for long lists.
-* Provide visual separators between items (ListTile + Divider) and square thumbnails.
-* Support swipe‑to‑delete via `flutter_slidable` using `DrawerMotion` so actions remain until swiped back.
+*   Use `showModalBottomSheet` with `isScrollControlled: true` for long lists.
+*   Provide visual separators between items (`ListTile` + `Divider`) and square thumbnails.
+*   Support swipe‑to‑delete via `flutter_slidable` using `DrawerMotion` so actions remain until swiped back.
 
----
+## Key Dependencies
+
+*   **`go_router`**: For declarative, URL-based navigation.
+*   **`flutter_riverpod`**: For state management, providing a clean separation of concerns.
+*   **`shared_preferences`**: For simple, persistent key-value storage (used for To-Do list and user settings).
+*   **`intl`**: For date and number formatting, ensuring consistent localization (e.g., displaying due dates in `home_tab`).
+*   **`uuid`**: For generating unique IDs for new data models like `TodoItem`.
 
 ## Troubleshooting
 
-* **Images not showing**: Ensure `photoPaths` store **relative** module paths and that `resolveModuleAbsolute` returns an existing file.
-* **Cannot use camera in emulator**: switch to gallery or physical device.
-* **Stale JSON** after schema changes: Account → *Clear Leakage Data*; or delete `users/<uid>/leakage/` in workspace mirror.
-* **Intro not prompting**: confirm `completedIntro` flag; you can toggle via Account actions.
-
----
+*   **Images not showing:** Ensure `photoPaths` store relative module paths and that `resolveModuleAbsolute` returns an existing file.
+*   **Cannot use camera in emulator:** switch to gallery or physical device.
+*   **Stale JSON after schema changes:** Account → Clear Leakage Data; or delete `users/<uid>/leakage/` in workspace mirror.
+*   **Intro not prompting:** confirm `completedIntro` flag; you can toggle via Account actions.
 
 ## TODO Backlog (Dev)
 
-* Persist full Intro answers (JSON) and surface in Account → Profile.
-* To‑Do list model + provider + UI; hook from Report suggestions.
-* iOS entitlements and storage/camera path parity.
-* Module template generator (Mason or script) for new retrofits.
+*   [ ] Persist full Intro answers (JSON) and surface in Account → Profile.
+*   [ ] To‑Do list model + provider + UI; hook from Report suggestions.
+*   [ ] iOS entitlements and storage/camera path parity.
+*   [ ] Module template generator (Mason or script) for new retrofits.

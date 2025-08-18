@@ -165,7 +165,7 @@ class BackendApiService {
     final files = <File>[];
     for (final rel in rels) {
       final abs = await fs.resolveModuleAbsolute(uid, module, rel);
-      if (abs != null && abs.isNotEmpty) {
+      if (abs.isNotEmpty) {
         final f = File(abs);
         if (await f.exists()) files.add(f);
       }
@@ -264,17 +264,17 @@ class BackendApiService {
     Map<String, dynamic> reportJson, {
     String? fallbackImageRel,
   }) {
-    String _fmtUsdPerYear(Object? v) {
+    String fmtUsdPerYear(Object? v) {
       final n = _asNum(v);
       return n == null ? r'$0/year' : '\$${n.toString()}/year';
     }
 
-    String _fmtKwhPerMonth(Object? v) {
+    String fmtKwhPerMonth(Object? v) {
       final n = _asNum(v);
       return n == null ? '0 kWh/mo' : '${n.toString()} kWh/mo';
     }
 
-    String _fmtPercent(Object? v) {
+    String fmtPercent(Object? v) {
       final n = _asNum(v);
       if (n == null) return '0%';
       // Some backends might return already formatted strings like "19% reduction"
@@ -312,7 +312,7 @@ class BackendApiService {
           subtitle: (m['subtitle'] ?? '').toString(),
           imagePath: relOrNull,
           thumbPath: relOrNull,
-          markerX: _asNum((bbox as Map)['x'])?.toDouble(),
+          markerX: _asNum((bbox)['x'])?.toDouble(),
           markerY: _asNum(bbox['y'])?.toDouble(),
           markerW: _asNum(bbox['w'])?.toDouble(),
           markerH: _asNum(bbox['h'])?.toDouble(),
@@ -322,11 +322,11 @@ class BackendApiService {
     }
 
     return LeakReport(
-      energyLossCost: _fmtUsdPerYear(reportJson['energyLossCostUsdPerYear'] ?? reportJson['energyLossCost']),
-      energyLossValue: _fmtKwhPerMonth(reportJson['energyLossKwhPerMonth'] ?? reportJson['energyLossValue']),
+      energyLossCost: fmtUsdPerYear(reportJson['energyLossCostUsdPerYear'] ?? reportJson['energyLossCost']),
+      energyLossValue: fmtKwhPerMonth(reportJson['energyLossKwhPerMonth'] ?? reportJson['energyLossValue']),
       leakSeverity: (reportJson['severity'] ?? reportJson['leakSeverity'] ?? 'Moderate').toString(),
-      savingsCost: _fmtUsdPerYear(reportJson['savingsUsdPerYear'] ?? reportJson['savingsCost']),
-      savingsPercent: _fmtPercent(reportJson['savingsPercent'] ?? reportJson['savingsPercentValue']),
+      savingsCost: fmtUsdPerYear(reportJson['savingsUsdPerYear'] ?? reportJson['savingsCost']),
+      savingsPercent: fmtPercent(reportJson['savingsPercent'] ?? reportJson['savingsPercentValue']),
       points: points,
     );
   }

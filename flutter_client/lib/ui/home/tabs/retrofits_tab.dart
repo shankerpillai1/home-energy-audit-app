@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+/// Defines the data structure for a single retrofit action item.
 class RetrofitItem {
   final String id;
   final String title;
@@ -19,13 +20,15 @@ class RetrofitItem {
   });
 }
 
+/// Defines a section containing a list of [RetrofitItem]s.
 class RetrofitSection {
   final String title;
   final List<RetrofitItem> items;
   const RetrofitSection({required this.title, required this.items});
 }
 
-/// Data catalog (from your board). Only 'leakage' is wired to route for now.
+/// A static catalog of all available retrofit sections and items.
+/// The `enabled` flag controls whether an item is tappable.
 const kRetrofitSections = <RetrofitSection>[
   RetrofitSection(
     title: 'LED Light Bulbs',
@@ -35,7 +38,7 @@ const kRetrofitSections = <RetrofitSection>[
         title: 'Switch to LED Bulbs',
         subtitle: 'Instant savings; longer life; lower heat.',
         icon: Icons.lightbulb_outline,
-        enabled: false,
+        enabled: true, // Changed to true to enable this retrofit
       ),
     ],
   ),
@@ -60,7 +63,7 @@ const kRetrofitSections = <RetrofitSection>[
         subtitle:
             'Setbacks for AC/heat; explore smart thermostats (e.g., location tracking).',
         icon: Icons.thermostat_outlined,
-        enabled: false,
+        enabled: true, // Changed to true to enable this retrofit
       ),
     ],
   ),
@@ -208,9 +211,13 @@ const kRetrofitSections = <RetrofitSection>[
   ),
 ];
 
+/// The RetrofitsTab widget displays a list of available energy-saving retrofits,
+/// grouped by section.
 class RetrofitsTab extends ConsumerWidget {
   const RetrofitsTab({super.key});
 
+  /// Handles tap events on a [RetrofitItem].
+  /// Navigates to the corresponding page if the item is enabled.
   void _onTapItem(BuildContext context, RetrofitItem item) {
     if (!item.enabled) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,6 +229,13 @@ class RetrofitsTab extends ConsumerWidget {
       case 'leakage':
         context.push('/leakage/dashboard');
         break;
+      // Added navigation for new retrofit items
+      case 'lighting_led':
+        context.push('/retrofits/led');
+        break;
+      case 'thermostat':
+        context.push('/retrofits/thermostat');
+        break;
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No route defined for "${item.title}"')),
@@ -231,14 +245,15 @@ class RetrofitsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Dynamically build the list of widgets from the static catalog.
     final children = <Widget>[];
     for (final section in kRetrofitSections) {
-      // Compact section header
+      // Add a compact header for each section.
       children.add(Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Text(section.title, style: Theme.of(context).textTheme.titleSmall),
       ));
-      // Dense item cards
+      // Add a card for each item within the section.
       for (final it in section.items) {
         children.add(_RetrofitItemCard(item: it, onTap: () => _onTapItem(context, it)));
       }
@@ -251,6 +266,7 @@ class RetrofitsTab extends ConsumerWidget {
   }
 }
 
+/// A private widget to display a single [RetrofitItem] in a compact card.
 class _RetrofitItemCard extends StatelessWidget {
   final RetrofitItem item;
   final VoidCallback onTap;
@@ -258,7 +274,7 @@ class _RetrofitItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Small, space-saving card with a dense ListTile
+    // Uses a dense ListTile for a more compact appearance.
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Card(
