@@ -1,7 +1,7 @@
 # Home Energy Audit (Flutter)
 
 ## Project Overview
-wiki: https://app.devin.ai/wiki/Chisato243/home-energy-audit-app
+wiki: [https://app.devin.ai/wiki/Chisato243/home-energy-audit-app](https://deepwiki.com/Chisato243/home-energy-audit-app)
 
 The Home Energy Audit app helps households find and act on energy‑saving opportunities with a clean, guided experience. It ships as a Flutter app (Android first) and uses a modular design so new retrofit domains (e.g., thermostat, appliances) can be added without touching core flows.
 
