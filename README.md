@@ -164,7 +164,7 @@ See `lib/` tree in the repo. Key areas:
 
 *   **`user_provider.dart`**: tracks `uid`, `isLoggedIn`, `completedIntro`; exposes actions (login/logout, mark intro complete, clear caches).
 *   **`leakage_task_provider.dart`**: CRUD + lifecycle transitions, and `submitForAnalysis()` which calls the mock backend and persists a report.
-*   **`todo_provider.dart`**: Manages the user's To-Do list and reminders, with persistence to local storage.
+*   **`todo_provider.dart`**: Manages the user's To-Do list and reminders, with persistence to local storage(stored in shared_preference for now. Could be changed in the future if needed).
 
 ### Navigation (GoRouter)
 
