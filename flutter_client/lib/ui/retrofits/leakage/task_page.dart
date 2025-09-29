@@ -286,7 +286,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _type.isEmpty ? null : _type,
+              initialValue: _type.isEmpty ? null : _type,
               items: const ['door', 'window', 'wall']
                   .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                   .toList(),

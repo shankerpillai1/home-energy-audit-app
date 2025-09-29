@@ -73,7 +73,7 @@ const kRetrofitSections = <RetrofitSection>[
       RetrofitItem(
         id: 'heating_replace',
         title: 'Replace with More Efficient System',
-        subtitle: 'See Replace module for options.',
+        subtitle: 'See Replace for options.',
         icon: Icons.fireplace,
         enabled: false,
       ),
