@@ -14,7 +14,7 @@ class AccountTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProvider);
-    final username = user.username ?? 'Unknown';
+    final username = user.email ?? 'Unknown';
 
     return ListView(
       padding: const EdgeInsets.all(16),

@@ -22,7 +22,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   
   Future<void> _doLogin() async {
-    final user = _userCtrl.text.trim();
+    /*final user = _userCtrl.text.trim();
     final pwd = _pwdCtrl.text;
     if (user.isEmpty || pwd.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,6 +61,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
 
       await ref.read(userProvider.notifier).login(user);
+      if (!mounted) return;
+      context.go('/home');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }*/
+
+    //experimental db implementation
+    final email = _userCtrl.text.trim();
+    final pwd = _pwdCtrl.text;
+
+    if (email.isEmpty || pwd.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final ok = await _auth.login(email, pwd);
+      final user=ok.user;
+      if (user==null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid email or password')),
+        );
+        return;
+      }
+
+      // Save user info locally (if you still use userProvider)
+      await ref.read(userProvider.notifier).login(email, pwd);
+
       if (!mounted) return;
       context.go('/home');
     } finally {

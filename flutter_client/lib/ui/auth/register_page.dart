@@ -101,8 +101,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   return;
                                 }
                                 setState(() => _isLoading = true);
-                                final created =
-                                    await _auth.register(u, p);
+                                /*final created =
+                                    await _auth.register(u, p);*/
+                                
+                                final res = await _auth.register(u, p);
+                                final created = res.user != null;
                                 setState(() => _isLoading = false);
                                 if (!created) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +115,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   );
                                   return;
                                 }
-                                await notifier.login(u);
+                                await notifier.login(u,p);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                       content:

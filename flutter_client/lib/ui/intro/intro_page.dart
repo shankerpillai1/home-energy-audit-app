@@ -149,7 +149,7 @@ class _IntroPageState extends ConsumerState<IntroPage> {
 
                       // Mark intro completed if not yet
                       final user = ref.read(userProvider);
-                      final username = user.username;
+                      final username = user.email ?? 'Unknown';
                       if (username != null && username.isNotEmpty) {
                         await SettingsService().saveBool('introCompleted_$username', true);
                       }
