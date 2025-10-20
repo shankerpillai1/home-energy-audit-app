@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/user_provider.dart';
-
 import '../../services/auth_service.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -14,89 +13,45 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _userCtrl = TextEditingController();
-  final _pwdCtrl = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _auth = AuthService();
-
   bool _isLoading = false;
 
-  
-  Future<void> _doLogin() async {
-    /*final user = _userCtrl.text.trim();
-    final pwd = _pwdCtrl.text;
-    if (user.isEmpty || pwd.isEmpty) {
+  Future<void> _login() async {
+    setState(() => _isLoading = true);
+    try {
+      await _auth.login(_emailController.text, _passwordController.text);
+      if (!mounted) return;
+      // You can also update your Riverpod provider if needed
+      ref.read(userProvider.notifier).setUser(_auth.currentUser);
+      context.go('/home');
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
+        SnackBar(content: Text('Login failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email to reset password')),
       );
       return;
     }
-
-    setState(() => _isLoading = true);
     try {
-      // First: explicit existence check (so we can show a clear message)
-      final known = await _auth.getAllUsers();
-      final exists = known.contains(user);
-      if (!exists) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('User does not exist.'),
-            action: SnackBarAction(
-              label: 'Go to Register',
-              onPressed: () => context.push('/register'),
-            ),
-          ),
-        );
-        return;
-      }
-
-      // Then validate credentials
-      final ok = await _auth.login(user, pwd);
-      if (!ok) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid username or password')),
-        );
-        return;
-      }
-
-      await ref.read(userProvider.notifier).login(user);
-      if (!mounted) return;
-      context.go('/home');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }*/
-
-    //experimental db implementation
-    final email = _userCtrl.text.trim();
-    final pwd = _pwdCtrl.text;
-
-    if (email.isEmpty || pwd.isEmpty) {
+      await _auth.forgotPassword(email);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
+        const SnackBar(content: Text('Password reset email sent')),
       );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      final ok = await _auth.login(email, pwd);
-      final user=ok.user;
-      if (user==null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid email or password')),
-        );
-        return;
-      }
-
-      // Save user info locally (if you still use userProvider)
-      await ref.read(userProvider.notifier).login(email, pwd);
-
-      if (!mounted) return;
-      context.go('/home');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending reset email: $e')),
+      );
     }
   }
 
@@ -105,69 +60,69 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-        
-      ),
+      appBar: AppBar(title: const Text('Sign In')),
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 6,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Login', style: theme.textTheme.displayLarge),
-                    const SizedBox(height: 24),
-
-                    TextField(
-                      controller: _userCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Username',
-                        prefixIcon: Icon(Icons.person),
-                      ),
+          child: Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Welcome Back', style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: 24),
+                  
+                  TextField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email),
                     ),
-                    const SizedBox(height: 16),
-
-                    TextField(
-                      controller: _pwdCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock),
-                      ),
-                      obscureText: true,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(Icons.lock),
                     ),
-                    const SizedBox(height: 24),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 24),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _doLogin,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('LOGIN'),
-                      ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _login,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Login'),
                     ),
-                    const SizedBox(height: 12),
+                  ),
+                  
+                  const SizedBox(height: 12),
 
-                    TextButton(
-                      onPressed: _isLoading ? null : () => context.push('/register'),
-                      style: TextButton.styleFrom(textStyle: theme.textTheme.labelLarge),
-                      child: const Text('Create an account'),
-                    ),
-                  ],
-                ),
+                  TextButton(
+                    onPressed: () => context.go('/register'),
+                    child: const Text('Don’t have an account? Register'),
+                  ),
+
+                  TextButton(
+                    onPressed: _forgotPassword,
+                    child: const Text('Forgot Password?'),
+                  ),
+                ],
               ),
             ),
           ),

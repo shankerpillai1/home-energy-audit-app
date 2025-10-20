@@ -1,109 +1,81 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'settings_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Very simple local auth:
-/// - Registry: StringList under key 'users_registry'
-/// - Passwords: per-user 'pwd_<username>' (plain text for dev; swap to hash later)
 class AuthService {
-  /*static const _kRegistryKey = 'users_registry';
-  static String _pwdKey(String u) => 'pwd_$u';
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Return all registered usernames.
-  Future<List<String>> getAllUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    return List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
-  }
-
-  Future<bool> _userExists(String username) async {
-    final list = await getAllUsers();
-    return list.contains(username);
-  }
-
-  /// Register new user. Returns false if username already exists.
-  Future<bool> register(String username, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
-    if (list.contains(username)) return false;
-
-    list.add(username);
-    await prefs.setStringList(_kRegistryKey, list);
-    await prefs.setString(_pwdKey(username), password);
-    return true;
-  }
-
-  /// Validate login credentials.
-  Future<bool> login(String username, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!await _userExists(username)) return false;
-    final stored = prefs.getString(_pwdKey(username));
-    return stored == password;
-  }
-
-  /// Delete a single user (registry entry + stored password).
-  Future<void> deleteUser(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = List<String>.from(prefs.getStringList(_kRegistryKey) ?? const []);
-    list.remove(username);
-    await prefs.setStringList(_kRegistryKey, list);
-    await prefs.remove(_pwdKey(username));
-  }
-
-  /// Danger: clear ALL local users and all SharedPreferences.
-  /// Used by "Clear ALL users & data" in Account.
-  Future<void> clearAll() async {
-    // For simplicity in dev, nuke everything in SharedPreferences.
-    await SettingsService().clearAll();
-  }*/
-
-  //experimental new database impementation
-  final _supabase = Supabase.instance.client;
-
-  Future<AuthResponse> register(String email, String password) async {
+  /// Registers a new user with email and password
+  Future<UserCredential> register(String email, String password) async {
     try {
-      final res = await _supabase.auth.signUp(
-        email: email,
-        password: password,
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
       );
-      return res;
-    } catch (e) {
-      print('Register error: $e');
+      print('User registered: ${credential.user?.email}');
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      print('Registration error: ${e.code} - ${e.message}');
       rethrow;
     }
   }
 
-  Future<AuthResponse> login(String email, String password) async {
+  /// Logs in an existing user with email and password
+  Future<UserCredential> login(String email, String password) async {
     try {
-      final res = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
       );
-      return res;
-    } catch (e) {
-      print('Login error: $e');
+      print('User logged in: ${credential.user?.email}');
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      print('Login error: ${e.code} - ${e.message}');
       rethrow;
     }
   }
 
+  /// Sends a password reset email
+  Future<void> forgotPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      print('Password reset email sent to $email');
+    } on FirebaseAuthException catch (e) {
+      print('Forgot password error: ${e.code} - ${e.message}');
+      rethrow;
+    }
+  }
+
+  /// Since Firebase doesn’t have "username" by default, you can
+  /// store a displayName when registering and retrieve it here.
+  /// This simulates "forgot username" by sending their email reminder.
+  Future<String?> forgotUsername(String email) async {
+    try {
+      // Check if a user exists with this email
+      // FirebaseAuth doesn't provide direct lookup without admin privileges,
+      // so this is only possible if you store display names in Firestore
+      // For now, just return the same email to remind the user
+      return email.trim();
+    } catch (e) {
+      print('Forgot username error: $e');
+      return null;
+    }
+  }
+
+  /// Logs out the current user
   Future<void> logout() async {
-    await _supabase.auth.signOut();
-  }
-
-  User? get currentUser => _supabase.auth.currentUser;
-
-  Future<List<String>> getAllUsers() async {
-    try {
-      // For now, return only the logged-in user’s email.
-      final user = _supabase.auth.currentUser;
-      if (user == null) return [];
-      return [user.email ?? ''];
-    } catch (e) {
-      print('getAllUsers error: $e');
-      return [];
-    }
-  }
-
-  Future<void> clearAll() async {
+    await _auth.signOut();
     await SettingsService().clearAll();
+    print('User signed out.');
+  }
+
+  /// Returns the currently signed-in user
+  User? get currentUser => _auth.currentUser;
+
+  /// Optional helper: get all users (Firebase doesn’t allow listing users on client side)
+  /// You can instead return the current user’s email only
+  Future<List<String>> getAllUsers() async {
+    final user = _auth.currentUser;
+    if (user == null) return [];
+    return [user.email ?? ''];
   }
 }

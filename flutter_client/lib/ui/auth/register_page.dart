@@ -13,140 +13,132 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
-  final _userCtrl = TextEditingController();
-  final _pwdCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
   final _auth = AuthService();
 
   bool _isLoading = false;
 
+  Future<void> _register() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirm = _confirmController.text.trim();
+
+    if (email.isEmpty || password.isEmpty || confirm.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (password != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _auth.register(email, password);
+      if (!mounted) return;
+
+      // Optional: update your Riverpod user provider
+      ref.read(userProvider.notifier).setUser(_auth.currentUser);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created successfully!')),
+      );
+
+      // Return to login page
+      context.go('/');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registration failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final notifier = ref.read(userProvider.notifier);
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Create Account')),
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 6,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Register', style: theme.textTheme.displayLarge),
-                    const SizedBox(height: 24),
+          child: Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Register', style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: 24),
 
-                    // Username
-                    TextField(
-                      controller: _userCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Username',
-                        prefixIcon: Icon(Icons.person_add),
-                      ),
+                  TextField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email),
                     ),
-                    const SizedBox(height: 16),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Password
-                    TextField(
-                      controller: _pwdCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock),
-                      ),
-                      obscureText: true,
+                  TextField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(Icons.lock),
                     ),
-                    const SizedBox(height: 16),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Confirm Password
-                    TextField(
-                      controller: _confirmCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm Password',
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      obscureText: true,
+                  TextField(
+                    controller: _confirmController,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Password',
+                      prefixIcon: Icon(Icons.lock_outline),
                     ),
-                    const SizedBox(height: 24),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 24),
 
-                    // Register button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () async {
-                                final u = _userCtrl.text.trim();
-                                final p = _pwdCtrl.text;
-                                final c = _confirmCtrl.text;
-                                if (u.isEmpty || p.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Please fill in all fields')),
-                                  );
-                                  return;
-                                }
-                                if (p != c) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Passwords do not match')),
-                                  );
-                                  return;
-                                }
-                                setState(() => _isLoading = true);
-                                /*final created =
-                                    await _auth.register(u, p);*/
-                                
-                                final res = await _auth.register(u, p);
-                                final created = res.user != null;
-                                setState(() => _isLoading = false);
-                                if (!created) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Username already exists')),
-                                  );
-                                  return;
-                                }
-                                await notifier.login(u,p);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content:
-                                          Text('Registration successful')),
-                                );
-                                context.go('/home');
-                              },
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('REGISTER'),
-                      ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _register,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Create Account'),
                     ),
-                    const SizedBox(height: 12),
+                  ),
 
-                    // Back to Login
-                    TextButton(
-                      onPressed: () => context.pop(),
-                      style: TextButton.styleFrom(
-                        textStyle: theme.textTheme.labelLarge,
-                      ),
-                      child: const Text('Back to login'),
-                    ),
-                  ],
-                ),
+                  const SizedBox(height: 12),
+
+                  TextButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Already have an account? Login'),
+                  ),
+                ],
+              ),
               ),
             ),
           ),

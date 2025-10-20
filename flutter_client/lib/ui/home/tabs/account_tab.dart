@@ -220,7 +220,7 @@ class AccountTab extends ConsumerWidget {
     if (await root.exists()) {
       await root.delete(recursive: true);
     }
-    await auth.clearAll();
+    //await auth.clearAll();
 
     ref.read(leakageTaskListProvider.notifier).resetAll();
     ref.read(userProvider.notifier).logout();
