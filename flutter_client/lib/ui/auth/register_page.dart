@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+/*import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,6 +21,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _isLoading = false;
 
   Future<void> _register() async {
+    
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirm = _confirmController.text.trim();
@@ -38,7 +39,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       );
       return;
     }
-
+    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
     try {
@@ -146,4 +147,4 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
   }
-}
+}*/

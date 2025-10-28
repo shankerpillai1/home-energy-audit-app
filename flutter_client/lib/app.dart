@@ -49,7 +49,7 @@ class EnergyAuditApp extends ConsumerWidget {
           ),
           // Auth routes
           GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
-          GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+          //GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
           // Onboarding route
           GoRoute(path: '/intro', builder: (_, __) => const IntroPage()),
           // Main app routes

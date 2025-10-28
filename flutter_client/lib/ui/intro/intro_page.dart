@@ -149,8 +149,8 @@ class _IntroPageState extends ConsumerState<IntroPage> {
 
                       // Mark intro completed if not yet
                       final user = ref.read(userProvider);
-                      final username = user.email ?? 'Unknown';
-                      if (username != null && username.isNotEmpty) {
+                      final username = user.uid ?? 'Unknown';
+                      if (username.isNotEmpty) {
                         await SettingsService().saveBool('introCompleted_$username', true);
                       }
                       await ref.read(userProvider.notifier).completeIntro();
@@ -242,7 +242,11 @@ class _IntroPageState extends ConsumerState<IntroPage> {
         ..._appliances.keys.map((key) {
           return CheckboxListTile(
             value: _appliances[key],
-            onChanged: (v) => setState(() => _appliances[key] = v!),
+            //onChanged: (v) => setState(() => _appliances[key] = v!)
+            onChanged: (v) {
+              _appliances[key] = v!;
+              setState(() {}); // one rebuild instead of rebuilding every key
+            },
             title: Text(key),
             activeColor: theme.colorScheme.primary,
           );
