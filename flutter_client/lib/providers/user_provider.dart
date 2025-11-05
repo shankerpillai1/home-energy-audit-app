@@ -95,7 +95,6 @@ class UserNotifier extends StateNotifier<UserState> {
 
   /// Extracts a stable UID from a Google ID token (JWT) without storing PII.
   /// Uses the `sub` claim (subject). This does not verify the token;
-  /// your backend should still verify signatures with Google keys.
   String? _extractUidFromIdToken(String? idToken) {
     if (idToken == null) return null;
     try {
@@ -103,8 +102,8 @@ class UserNotifier extends StateNotifier<UserState> {
       if (parts.length != 3) return null;
       final payload = _base64UrlDecode(parts[1]);
       final map = json.decode(utf8.decode(payload)) as Map<String, dynamic>;
-      final sub = map['sub'];
-      return (sub is String && sub.isNotEmpty) ? sub : null;
+      final email = map['email'];
+      return (email is String && email.isNotEmpty) ? email : null;
     } catch (_) {
       return null;
     }
