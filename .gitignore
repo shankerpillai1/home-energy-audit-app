@@ -33,6 +33,11 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+android/.gradle/
+android/.cxx/
+android/app/build/
+flutter_client/build/
+flutter_client/.dart_tool/
 
 # Symbolication related
 app.*.symbols
