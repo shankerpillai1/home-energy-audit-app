@@ -22,7 +22,6 @@ String _stateToString(LeakageTaskState s) {
     case LeakageTaskState.closed:
       return 'closed';
     case LeakageTaskState.draft:
-    default:
       return 'draft';
   }
 }
@@ -30,6 +29,7 @@ String _stateToString(LeakageTaskState s) {
 /// Suggestion for a specific leak point.
 class LeakSuggestion {
   final String title;            // e.g., "Weatherstripping"
+  final String subtitle;
   final String? costRange;       // e.g., "$10–20"
   final String? difficulty;      // e.g., "Easy"
   final String? lifetime;        // e.g., "3–5 years"
@@ -37,6 +37,7 @@ class LeakSuggestion {
 
   LeakSuggestion({
     required this.title,
+    required this.subtitle,
     this.costRange,
     this.difficulty,
     this.lifetime,
@@ -45,6 +46,7 @@ class LeakSuggestion {
 
   Map<String, dynamic> toJson() => {
         'title': title,
+        'subtitle': subtitle,
         'costRange': costRange,
         'difficulty': difficulty,
         'lifetime': lifetime,
@@ -53,6 +55,7 @@ class LeakSuggestion {
 
   factory LeakSuggestion.fromJson(Map<String, dynamic> j) => LeakSuggestion(
         title: j['title'] as String,
+        subtitle: j['subtitle'] as String,
         costRange: j['costRange'] as String?,
         difficulty: j['difficulty'] as String?,
         lifetime: j['lifetime'] as String?,
@@ -60,59 +63,6 @@ class LeakSuggestion {
       );
 }
 
-/// One leak point inside the report.
-class LeakReportPoint {
-  final String title;               // e.g., "Frame–Seal Gap"
-  final String subtitle;            // e.g., "Location: Top frame..."
-  final String? imagePath;          // module-relative path (thermal preferred)
-  final String? thumbPath;          // optional thumbnail path
-
-  /// Optional normalized marker rectangle on the image [0..1]
-  final double? markerX;
-  final double? markerY;
-  final double? markerW;
-  final double? markerH;
-
-  final List<LeakSuggestion> suggestions;
-
-  LeakReportPoint({
-    required this.title,
-    required this.subtitle,
-    this.imagePath,
-    this.thumbPath,
-    this.markerX,
-    this.markerY,
-    this.markerW,
-    this.markerH,
-    this.suggestions = const [],
-  });
-
-  Map<String, dynamic> toJson() => {
-        'title': title,
-        'subtitle': subtitle,
-        'imagePath': imagePath,
-        'thumbPath': thumbPath,
-        'markerX': markerX,
-        'markerY': markerY,
-        'markerW': markerW,
-        'markerH': markerH,
-        'suggestions': suggestions.map((e) => e.toJson()).toList(),
-      };
-
-  factory LeakReportPoint.fromJson(Map<String, dynamic> j) => LeakReportPoint(
-        title: j['title'] as String,
-        subtitle: j['subtitle'] as String,
-        imagePath: j['imagePath'] as String?,
-        thumbPath: j['thumbPath'] as String?,
-        markerX: (j['markerX'] as num?)?.toDouble(),
-        markerY: (j['markerY'] as num?)?.toDouble(),
-        markerW: (j['markerW'] as num?)?.toDouble(),
-        markerH: (j['markerH'] as num?)?.toDouble(),
-        suggestions: (j['suggestions'] as List<dynamic>? ?? [])
-            .map((e) => LeakSuggestion.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
-}
 
 /// Report payload embedded in a task (can be null when not analyzed yet).
 class LeakReport {
@@ -121,7 +71,10 @@ class LeakReport {
   final String? leakSeverity;     // e.g., "Moderate"
   final String? savingsCost;      // e.g., "$31/year"
   final String? savingsPercent;   // e.g., "19% reduction"
-  final List<LeakReportPoint> points;
+  final List<LeakSuggestion> suggestions;
+  final String? imagePath;          // module-relative path (thermal preferred)
+  final String? thumbPath;          // optional thumbnail path
+
 
   const LeakReport({
     this.energyLossCost,
@@ -129,7 +82,9 @@ class LeakReport {
     this.leakSeverity,
     this.savingsCost,
     this.savingsPercent,
-    this.points = const [],
+    this.suggestions = const [],
+    this.imagePath,
+    this.thumbPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -138,7 +93,9 @@ class LeakReport {
         'leakSeverity': leakSeverity,
         'savingsCost': savingsCost,
         'savingsPercent': savingsPercent,
-        'points': points.map((e) => e.toJson()).toList(),
+        'imagePath': imagePath,
+        'thumbPath': thumbPath,
+        'suggestions': suggestions.map((e) => e.toJson()).toList(),
       };
 
   factory LeakReport.fromJson(Map<String, dynamic> j) => LeakReport(
@@ -147,8 +104,10 @@ class LeakReport {
         leakSeverity: j['leakSeverity'] as String?,
         savingsCost: j['savingsCost'] as String?,
         savingsPercent: j['savingsPercent'] as String?,
-        points: (j['points'] as List<dynamic>? ?? [])
-            .map((e) => LeakReportPoint.fromJson(e as Map<String, dynamic>))
+        imagePath: j['imagePath'] as String?,
+        thumbPath: j['thumbPath'] as String?,
+        suggestions: (j['suggestions'] as List<dynamic>? ?? [])
+            .map((e) => LeakSuggestion.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 }
@@ -173,6 +132,10 @@ class LeakageTask {
   String? analysisSummary;
   List<String>? recommendations;
 
+  //inside and outside temperature at time thermal images were taken
+  String? insideTemp;
+  String? outsideTemp;
+
   // Embedded report (null until analysis is available)
   LeakReport? report;
 
@@ -187,6 +150,8 @@ class LeakageTask {
     this.closedResult,
     this.analysisSummary,
     this.recommendations,
+    this.insideTemp,
+    this.outsideTemp,
     this.report,
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? DateTime.now();
@@ -202,6 +167,8 @@ class LeakageTask {
     String? closedResult,
     String? analysisSummary,
     List<String>? recommendations,
+    String? insideTemp,
+    String? outsideTemp,
     LeakReport? report,
   }) {
     return LeakageTask(
@@ -215,6 +182,8 @@ class LeakageTask {
       closedResult: closedResult ?? this.closedResult,
       analysisSummary: analysisSummary ?? this.analysisSummary,
       recommendations: recommendations ?? this.recommendations,
+      insideTemp: insideTemp ?? this.insideTemp,
+      outsideTemp: outsideTemp ?? this.outsideTemp,
       report: report ?? this.report,
     );
   }
@@ -230,6 +199,8 @@ class LeakageTask {
         'closedResult': closedResult,
         'analysisSummary': analysisSummary,
         'recommendations': recommendations,
+        'insideTemp': insideTemp,
+        'outsideTemp': outsideTemp,
         'report': report?.toJson(),
       };
 
@@ -237,8 +208,7 @@ class LeakageTask {
     final reportJson = j['report'];
     final hasReport = reportJson is Map<String, dynamic>;
     // Default state: if missing, infer draft unless report exists -> open
-    final inferredState =
-        hasReport ? LeakageTaskState.open : LeakageTaskState.draft;
+
 
     return LeakageTask(
       id: j['id'] as String?,
@@ -246,11 +216,13 @@ class LeakageTask {
       type: j['type'] as String,
       photoPaths: (j['photoPaths'] as List<dynamic>).cast<String>(),
       createdAt: DateTime.parse(j['createdAt'] as String),
-      state: _stateFromString(j['state'] as String?) ?? inferredState,
+      state: _stateFromString(j['state'] as String?),
       decision: j['decision'] as String?,
       closedResult: j['closedResult'] as String?,
       analysisSummary: j['analysisSummary'] as String?,
       recommendations: (j['recommendations'] as List<dynamic>?)?.cast<String>(),
+      insideTemp: j['insideTemp'] as String?,
+      outsideTemp: j['outsideTemp'] as String?,
       report: hasReport ? LeakReport.fromJson(reportJson) : null,
     );
   }

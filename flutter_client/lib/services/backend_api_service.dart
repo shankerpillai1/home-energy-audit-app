@@ -57,9 +57,9 @@ class BackendApiService {
   // MOCK FLOW (existing behavior; unchanged public signature)
   // ---------------------------------------------------------------------------
 
+
   /// Generate a mock report using user's uploaded media as display images.
-  /// - detectedCount: number of leak points to create (>=0)
-  /// - Images are chosen from user's uploaded photos (prefer thermal).
+  /// With the "point" layer removed, we now produce only report-level data.
   Future<LeakReport> analyzeLeakageTask(
     LeakageTask task, {
     int detectedCount = 2,
@@ -67,33 +67,20 @@ class BackendApiService {
     await Future.delayed(const Duration(milliseconds: 300));
 
     final candidates = _pickImageCandidates(task.photoPaths); // relative paths
-    final points = <LeakReportPoint>[];
+    final rel = candidates.isNotEmpty
+        ? candidates.first
+        : (task.photoPaths.isNotEmpty ? task.photoPaths.first : null);
 
-    for (int i = 0; i < detectedCount; i++) {
-      final rel = candidates.isNotEmpty ? candidates[i % candidates.length] : null;
-
-      points.add(
-        LeakReportPoint(
-          title: 'Detected Leak #${i + 1}',
-          subtitle: 'Location: N/A\nGap size: N/A\nHeat loss: N/A',
-          imagePath: rel,
-          thumbPath: rel,
-          markerX: 0.12 + 0.15 * (i % 5),
-          markerY: 0.18 + 0.12 * (i % 4),
-          markerW: 0.18,
-          markerH: 0.20,
-          suggestions: [
-            LeakSuggestion(
-              title: 'General Weatherstripping',
-              costRange: r'$10–20',
-              difficulty: 'Easy',
-              lifetime: '3–5 years',
-              estimatedReduction: '50–70%',
-            ),
-          ],
-        ),
+    final suggestions = List<LeakSuggestion>.generate(detectedCount, (i) {
+      return LeakSuggestion(
+        title: 'General Weatherstripping',
+        subtitle: 'Enter Subtitle here',
+        costRange: r'$10–20',
+        difficulty: 'Easy',
+        lifetime: '3–5 years',
+        estimatedReduction: '50–70%',
       );
-    }
+    });
 
     return LeakReport(
       energyLossCost: detectedCount == 0 ? r'$0/year' : r'$142/year',
@@ -101,7 +88,9 @@ class BackendApiService {
       leakSeverity: detectedCount == 0 ? 'None' : 'Moderate',
       savingsCost: detectedCount == 0 ? r'$0/year' : r'$31/year',
       savingsPercent: detectedCount == 0 ? '0%' : '19% reduction',
-      points: points,
+      imagePath: rel,
+      thumbPath: rel,
+      suggestions: suggestions,
     );
   }
 
@@ -125,12 +114,6 @@ class BackendApiService {
     int? overrideDetectedCount,
     bool dryRun = false,
   }) async {
-    if (dryRun) {
-      // Produce a backend-like shape and map it, to validate our mapping logic without real requests.
-      final fake = _fakeBackendJson(task, overrideDetectedCount ?? 2);
-      return _mapBackendReport(fake, fallbackImageRel: _fallbackImageRel(task));
-    }
-
     final cfg = config;
     if (cfg == null) {
       throw BackendApiException('HTTP flow requested but BackendConfig is null.');
@@ -158,10 +141,13 @@ class BackendApiService {
     BackendConfig cfg, {
     int? overrideDetectedCount,
   }) async {
-    final endpoint = cfg.baseUri.resolve('/v1/leakage/jobs'); // e.g., POST https://api/v1/leakage/jobs
+    final endpoint = cfg.baseUri.resolve('/detect_leak'); // e.g., POST https://api/v1/leakage/jobs
 
+    // Serialize the entire task as JSON
+    final taskJson = jsonEncode(task.toJson());
+    
     // Resolve local media files (absolute paths)
-    final rels = _pickImageCandidates(task.photoPaths);
+    final rels = task.photoPaths; 
     final files = <File>[];
     for (final rel in rels) {
       final abs = await fs.resolveModuleAbsolute(uid, module, rel);
@@ -180,13 +166,9 @@ class BackendApiService {
 
     // Metadata fields
     req.fields['uid'] = uid;
-    req.fields['module'] = module;
-    req.fields['taskId'] = task.id;
-    req.fields['meta'] = jsonEncode({
-      'title': task.title,
-      'type': task.type,
-      if (overrideDetectedCount != null) 'overrideDetectedCount': overrideDetectedCount,
-    });
+    req.fields['task_json'] = taskJson;
+    if (overrideDetectedCount != null) {
+      req.fields['override_detected_count'] = overrideDetectedCount.toString();}
 
     // Media parts
     for (int i = 0; i < files.length; i++) {
@@ -218,7 +200,7 @@ class BackendApiService {
         throw BackendApiException('Job $jobId timed out after ${cfg.maxWait.inSeconds}s');
       }
 
-      final endpoint = cfg.baseUri.resolve('/v1/leakage/jobs/$jobId');
+      final endpoint = cfg.baseUri.resolve('/detect_leak/$jobId');
       final resp = await _getJson(endpoint, cfg);
       final status = (resp['status'] as String?)?.toLowerCase() ?? 'unknown';
 
@@ -241,25 +223,6 @@ class BackendApiService {
 
   // --- (3) Mapping backend JSON -> our LeakReport -----------------------------------------------
 
-  /// Expected backend "report" example (flexible; mapper handles both numbers and strings):
-  /// {
-  ///   "energyLossCostUsdPerYear": 142.0,
-  ///   "energyLossKwhPerMonth": 15.8,
-  ///   "severity": "Moderate",
-  ///   "savingsUsdPerYear": 31.0,
-  ///   "savingsPercent": 19,
-  ///   "points": [
-  ///     {
-  ///       "title": "Leak near north window",
-  ///       "subtitle": "Location: ...",
-  ///       "bbox": {"x":0.22,"y":0.30,"w":0.18,"h":0.20},
-  ///       "imageUrl": "https://...",  // optional; we fall back to local image
-  ///       "suggestions": [
-  ///         {"title":"Weatherstripping","costRange":"$10–20","difficulty":"Easy","lifetime":"3–5 years","estimatedReduction":"50–70%"}
-  ///       ]
-  ///     }
-  ///   ]
-  /// }
   LeakReport _mapBackendReport(
     Map<String, dynamic> reportJson, {
     String? fallbackImageRel,
@@ -283,40 +246,25 @@ class BackendApiService {
       return '${n.toString()}% reduction';
     }
 
-    final points = <LeakReportPoint>[];
-    final rawPoints = (reportJson['points'] as List?) ?? const [];
-    for (final raw in rawPoints) {
-      final m = (raw is Map<String, dynamic>) ? raw : <String, dynamic>{};
-      final bbox = (m['bbox'] as Map?) ?? const {};
-      final relOrNull = fallbackImageRel; // we keep module-relative path for UI; ignore remote url for now
+    String? imageRelOrUrl = (reportJson['imageUrl'] ?? reportJson['imagePath'])?.toString();
+    String? thumbRelOrUrl = (reportJson['thumbUrl'] ?? reportJson['thumbPath'])?.toString();
 
-      // suggestions: already shaped, but normalize keys
-      final sugRaw = (m['suggestions'] as List?) ?? const [];
-      final suggestions = <LeakSuggestion>[];
-      for (final s in sugRaw) {
-        final sm = (s is Map<String, dynamic>) ? s : <String, dynamic>{};
-        suggestions.add(
-          LeakSuggestion(
-            title: (sm['title'] ?? '').toString(),
-            costRange: (sm['costRange'] ?? '').toString(),
-            difficulty: (sm['difficulty'] ?? '').toString(),
-            lifetime: (sm['lifetime'] ?? '').toString(),
-            estimatedReduction: (sm['estimatedReduction'] ?? '').toString(),
-          ),
-        );
-      }
+    imageRelOrUrl ??= fallbackImageRel;
+    thumbRelOrUrl ??= imageRelOrUrl;
 
-      points.add(
-        LeakReportPoint(
-          title: (m['title'] ?? 'Detected Leak').toString(),
-          subtitle: (m['subtitle'] ?? '').toString(),
-          imagePath: relOrNull,
-          thumbPath: relOrNull,
-          markerX: _asNum((bbox)['x'])?.toDouble(),
-          markerY: _asNum(bbox['y'])?.toDouble(),
-          markerW: _asNum(bbox['w'])?.toDouble(),
-          markerH: _asNum(bbox['h'])?.toDouble(),
-          suggestions: suggestions,
+    final suggestions = <LeakSuggestion>[];
+
+    final topSug = (reportJson['suggestions'] as List?) ?? const [];
+    for (final s in topSug) {
+      final sm = (s is Map<String, dynamic>) ? s : <String, dynamic>{};
+      suggestions.add(
+        LeakSuggestion(
+          title: (sm['title'] ?? '').toString(),
+          subtitle: (sm['subtitle'] ?? '').toString(),
+          costRange: (sm['costRange'] ?? '').toString(),
+          difficulty: (sm['difficulty'] ?? '').toString(),
+          lifetime: (sm['lifetime'] ?? '').toString(),
+          estimatedReduction: (sm['estimatedReduction'] ?? '').toString(),
         ),
       );
     }
@@ -327,7 +275,9 @@ class BackendApiService {
       leakSeverity: (reportJson['severity'] ?? reportJson['leakSeverity'] ?? 'Moderate').toString(),
       savingsCost: fmtUsdPerYear(reportJson['savingsUsdPerYear'] ?? reportJson['savingsCost']),
       savingsPercent: fmtPercent(reportJson['savingsPercent'] ?? reportJson['savingsPercentValue']),
-      points: points,
+      imagePath: imageRelOrUrl,
+      thumbPath: thumbRelOrUrl,
+      suggestions: suggestions,
     );
   }
 
@@ -380,40 +330,5 @@ class BackendApiService {
     final s = v.toString().trim().replaceAll(RegExp(r'[^\d\.\-]'), '');
     if (s.isEmpty) return null;
     return num.tryParse(s);
-  }
-
-  /// Produce a backend-like JSON payload for dry-run mapping validation.
-  Map<String, dynamic> _fakeBackendJson(LeakageTask task, int count) {
-    final points = <Map<String, dynamic>>[];
-    for (var i = 0; i < count; i++) {
-      points.add({
-        'title': 'Leak #${i + 1}',
-        'subtitle': 'Auto-generated by dryRun mapper',
-        'bbox': {
-          'x': 0.12 + 0.15 * (i % 5),
-          'y': 0.18 + 0.12 * (i % 4),
-          'w': 0.18,
-          'h': 0.20,
-        },
-        'suggestions': [
-          {
-            'title': 'General Weatherstripping',
-            'costRange': r'$10–20',
-            'difficulty': 'Easy',
-            'lifetime': '3–5 years',
-            'estimatedReduction': '50–70%',
-          }
-        ],
-      });
-    }
-
-    return {
-      'energyLossCostUsdPerYear': 142.0,
-      'energyLossKwhPerMonth': 15.8,
-      'severity': count == 0 ? 'None' : (count == 1 ? 'Moderate' : 'High'),
-      'savingsUsdPerYear': 31.0,
-      'savingsPercent': 19,
-      'points': points,
-    };
   }
 }

@@ -14,11 +14,11 @@ const bool kUseHttpForAnalysis = true;
 /// When using HTTP, you can choose to do a "dry-run":
 /// - true  -> do not send real network requests; return a backend-like JSON and test the mapping.
 /// - false -> actually call your backend (you must set kBackendBaseUrl below).
-const bool kHttpDryRunDefault = true;
+const bool kHttpDryRunDefault = false;
 
 /// ===== Backend HTTP config (only used if/when you enable HTTP) =====
 /// Replace with your real API base URL, e.g. https://api.your-domain.com
-const String kBackendBaseUrl = 'https://api.example.com'; // TODO: change me
+const String kBackendBaseUrl = 'http://10.0.2.2:8000'; // Set to backend URL once functioning backend exists
 /// Optional API key/token if your backend needs it (add "Bearer " prefix in service).
 const String? kBackendApiKey = null; // e.g. 'YOUR_TOKEN'
 

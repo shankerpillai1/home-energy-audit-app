@@ -196,7 +196,6 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
 
   Future<void> submitForAnalysis(
     String taskId, {
-    int detectedCount = 2,
     AnalysisTransport? transport,
     bool? httpDryRun,
   }) async {
@@ -215,13 +214,11 @@ class LeakageTaskListNotifier extends StateNotifier<List<LeakageTask>> {
     if (mode == AnalysisTransport.mock) {
       report = await backend.analyzeLeakageTask(
         task,
-        detectedCount: detectedCount,
       );
     } else {
       final bool dry = httpDryRun ?? ref.read(httpDryRunSettingProvider);
       report = await backend.analyzeLeakageTaskHttp(
         task,
-        overrideDetectedCount: detectedCount,
         dryRun: dry,
       );
     }

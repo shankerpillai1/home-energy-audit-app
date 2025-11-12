@@ -127,33 +127,6 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
       return;
     }
 
-    // Ask for a temporary "detected points" number (for mock/dry-run parity).
-    final count = await showDialog<int>(
-      context: context,
-      builder: (ctx) {
-        final ctrl = TextEditingController(text: '2');
-        return AlertDialog(
-          title: const Text('Detected points'),
-          content: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'How many leak points?'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                final n = int.tryParse(ctrl.text.trim()) ?? 0;
-                Navigator.pop(ctx, n < 0 ? 0 : n);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-    if (count == null) return;
-
     setState(() => _submitting = true);
     _showProgressSheet();
 
@@ -166,7 +139,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
       // and the user can dismiss the progress sheet anytime.
       await ref
           .read(leakageTaskListProvider.notifier)
-          .submitForAnalysis(widget.taskId, detectedCount: count);
+          .submitForAnalysis(widget.taskId);
 
       // On success: close the progress sheet and navigate to report.
       _closeProgressSheetIfAny();
@@ -229,7 +202,6 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leakage Task'),
@@ -286,7 +258,7 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _type.isEmpty ? null : _type,
+              value: _type.isEmpty ? null : _type,
               items: const ['door', 'window', 'wall']
                   .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                   .toList(),

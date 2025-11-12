@@ -41,7 +41,7 @@ class LeakageReportPage extends ConsumerWidget {
     final sev = report?.leakSeverity ?? '--';
     final saveC = report?.savingsCost ?? '--';
     final saveP = report?.savingsPercent ?? '--';
-    final points = report?.points ?? const <LeakReportPoint>[];
+    final suggestions = report?.suggestions ?? const <LeakSuggestion>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -102,24 +102,22 @@ class LeakageReportPage extends ConsumerWidget {
               Expanded(child: _SmallCard(title: 'Potential Savings', line1: saveC, line2: saveP)),
             ],
           ),
+          const SizedBox(height: 16),
+
+          _ReportImage(report: report),
 
           const SizedBox(height: 16),
 
-          if (points.isEmpty)
+          if (suggestions.isEmpty)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('No points available.', style: Theme.of(context).textTheme.bodyLarge),
+                child: Text('No suggestions available.', style: Theme.of(context).textTheme.bodyLarge),
               ),
             )
           else
             Column(
-              children: points
-                  .map((pt) => _PointListTile(
-                        taskId: task.id,
-                        point: pt,
-                      ))
-                  .toList(),
+              children: suggestions.map((s) => _SuggestionTile(s)).toList(),
             ),
         ]),
       ),
@@ -160,24 +158,6 @@ class LeakageReportPage extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // Bottom sheet for point details (keeps the original “slide up” UX).
-  void _showPointBottomSheet(BuildContext context, WidgetRef ref, LeakReportPoint p) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.8,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        builder: (ctx, scrollCtrl) {
-          return _PointDetailSheet(point: p);
-        },
       ),
     );
   }
@@ -247,33 +227,9 @@ class _SmallCard extends StatelessWidget {
   }
 }
 
-/// List tile for a detected point. Tap -> slide-up bottom sheet with details.
-class _PointListTile extends ConsumerWidget {
-  final String taskId;
-  final LeakReportPoint point;
-  const _PointListTile({required this.taskId, required this.point});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        leading: _PointThumb(point: point),
-        title: Text(point.title),
-        subtitle: Text(point.subtitle),
-        trailing: const Icon(Icons.keyboard_arrow_up), // hint for slide-up detail
-        onTap: () {
-          (context.findAncestorWidgetOfExactType<LeakageReportPage>())
-              ?._showPointBottomSheet(context, ref, point);
-        },
-      ),
-    );
-  }
-}
-
-class _PointThumb extends ConsumerWidget {
-  final LeakReportPoint point;
-  const _PointThumb({required this.point});
+class _ReportImage extends ConsumerWidget {
+  final LeakReport? report;
+  const _ReportImage({required this.report});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -287,149 +243,45 @@ class _PointThumb extends ConsumerWidget {
     }
 
     return FutureBuilder<String?>(
-      future: absOrNull(point.thumbPath ?? point.imagePath),
+      future: absOrNull(report!.imagePath),
       builder: (context, snap) {
         final path = snap.data;
         if (path == null || !File(path).existsSync()) {
           return const SizedBox(
-            width: 56,
-            height: 56,
+            height: 240,
             child: DecoratedBox(
               decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
-              child: Icon(Icons.image_not_supported),
+              child: Center(child: Icon(Icons.image_not_supported)),
             ),
           );
         }
         return ClipRRect(
           borderRadius: BorderRadius.circular(6),
-          child: Image.file(File(path), width: 56, height: 56, fit: BoxFit.cover),
+          child: Center(child: Image.file(File(path), height: 240, fit: BoxFit.cover)),
         );
       },
     );
   }
 }
 
-/// Slide-up sheet content: marked image + suggestions.
-class _PointDetailSheet extends ConsumerWidget {
-  final LeakReportPoint point;
-  const _PointDetailSheet({required this.point});
+class _SuggestionTile extends StatelessWidget {
+  final LeakSuggestion s;
+  const _SuggestionTile(this.s);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final fs = ref.read(fileStorageServiceProvider);
-    final user = ref.read(userProvider);
-    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
-
-    Future<String?> absOrNull(String? relOrAbs) async {
-      if (relOrAbs == null) return null;
-      return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
-    }
-
-    Widget buildMarkedImage() {
-      return FutureBuilder<String?>(
-        future: absOrNull(point.imagePath),
-        builder: (context, snap) {
-          final path = snap.data;
-          if (path == null || !File(path).existsSync()) {
-            return Container(
-              height: 260,
-              color: Colors.grey.shade200,
-              child: const Center(child: Icon(Icons.image, size: 48)),
-            );
-          }
-          return AspectRatio(
-            aspectRatio: 1,
-            child: Stack(
-              children: [
-                Positioned.fill(child: Image.file(File(path), fit: BoxFit.contain)),
-                if (point.markerX != null &&
-                    point.markerY != null &&
-                    point.markerW != null &&
-                    point.markerH != null)
-                  LayoutBuilder(
-                    builder: (ctx, c) {
-                      final x = point.markerX!.clamp(0.0, 1.0) * c.maxWidth;
-                      final y = point.markerY!.clamp(0.0, 1.0) * c.maxHeight;
-                      final w = point.markerW!.clamp(0.0, 1.0) * c.maxWidth;
-                      final h = point.markerH!.clamp(0.0, 1.0) * c.maxHeight;
-                      return Positioned(
-                        left: x,
-                        top: y,
-                        width: w,
-                        height: h,
-                        child: IgnorePointer(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.primary,
-                                width: 3,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                              color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          );
-        },
-      );
-    }
-
-    Widget buildSuggestions() {
-      final items = point.suggestions;
-      if (items.isEmpty) return const SizedBox.shrink();
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: items.map((s) {
-          final lines = <String>[];
-          if (s.costRange != null && s.costRange!.isNotEmpty) lines.add('Cost: ${s.costRange}');
-          if (s.difficulty != null && s.difficulty!.isNotEmpty) lines.add(' | ${s.difficulty}');
-          if (s.lifetime != null && s.lifetime!.isNotEmpty) lines.add('\n${s.lifetime}');
-          if (s.estimatedReduction != null && s.estimatedReduction!.isNotEmpty) {
-            lines.add('\nEstimated reduction: ${s.estimatedReduction}');
-          }
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            child: ListTile(
-              title: Text(s.title),
-              subtitle: lines.isEmpty ? null : Text(lines.join()),
-            ),
-          );
-        }).toList(),
-      );
-    }
-
-    return Material(
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: ListView(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(point.title, style: Theme.of(context).textTheme.titleMedium),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(point.subtitle),
-              const SizedBox(height: 12),
-              buildMarkedImage(),
-              const SizedBox(height: 12),
-              buildSuggestions(),
-            ],
-          ),
-        ),
+  Widget build(BuildContext context) {
+    final lines = <String>[
+      if (s.costRange != null && s.costRange?.isNotEmpty == true) 'Cost: ${s.costRange}',
+      if (s.difficulty != null && s.difficulty?.isNotEmpty == true) 'Difficulty: ${s.difficulty}',
+      if (s.lifetime != null && s.lifetime?.isNotEmpty == true) 'Lifetime: ${s.lifetime}',
+      if (s.estimatedReduction != null && s.estimatedReduction?.isNotEmpty == true) 'Estimated Reduction: ${s.estimatedReduction}',
+    ];
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        title: Text(s.title),
+        subtitle: lines.isEmpty ? null : Text(lines.join("\n")),
       ),
     );
   }
