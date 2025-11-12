@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
+import 'package:http/http.dart' as http;
 
 /// Minimal auth state: only token + UID + flags (no personal info).
 class UserState {
@@ -45,7 +46,7 @@ class UserNotifier extends StateNotifier<UserState> {
     final token = await _auth.trySilentSignIn();
     if (token == null) return;
 
-    final uid = _extractUidFromIdToken(token);
+    final uid = await _fetchEmailFromGoogle(token);
     final completed = await _settings.readBool('introCompleted_$uid');
 
     state = UserState(
@@ -58,7 +59,7 @@ class UserNotifier extends StateNotifier<UserState> {
 
   /// Called after Google sign-in from the login page (we pass only the token).
   Future<void> setUser(String idToken) async {
-    final uid = _extractUidFromIdToken(idToken);
+    final uid = await _fetchEmailFromGoogle(idToken);
     final completed = await _settings.readBool('introCompleted_$uid');
 
     state = UserState(
@@ -105,6 +106,25 @@ class UserNotifier extends StateNotifier<UserState> {
       final email = map['email'];
       return (email is String && email.isNotEmpty) ? email : null;
     } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _fetchEmailFromGoogle(String idToken) async {
+    try {
+      final uri = Uri.parse('https://oauth2.googleapis.com/tokeninfo?id_token=$idToken');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final email = data['email'];
+        return (email is String && email.isNotEmpty) ? email : null;
+      } else {
+        print('Google tokeninfo error: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Error verifying token with Google: $e');
       return null;
     }
   }
