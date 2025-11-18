@@ -209,7 +209,31 @@ class BackendApiService {
         if (!resp.containsKey('report')) {
           throw BackendApiException('Job finished but missing report payload', cause: resp);
         }
-        return resp['report'] as Map<String, dynamic>;
+        final report = resp['report'] as Map<String, dynamic>;
+        final image = resp['image'];
+
+        if (image != null && image['data'] != null) {
+          try {
+            final bytes = base64Decode(image['data']);
+
+            final filename = image['filename'];
+
+            final relativePath = filename;  
+
+            final absPath = await fs.resolveModuleAbsolute(uid, 'leakage', relativePath);
+
+            final file = File(absPath);
+            await file.parent.create(recursive: true);
+            await file.writeAsBytes(bytes, flush: true);
+
+            report['imagePath'] = relativePath;
+
+          } 
+          catch (e) {
+            report['imagePath'] = null;
+          }
+        }
+        return report;
       }
 
       if (status == 'error' || status == 'failed') {
@@ -219,7 +243,7 @@ class BackendApiService {
       // queued/running: wait and poll again
       await Future.delayed(cfg.pollInterval);
     }
-  }
+  } 
 
   // --- (3) Mapping backend JSON -> our LeakReport -----------------------------------------------
 

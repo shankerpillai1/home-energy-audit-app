@@ -17,7 +17,6 @@ def run_analysis(job_id: str):
     session = SessionLocal()
     try:
         JOBS[job_id]["status"] = JobStatus.processing
-        task_data = JOBS[job_id]["task"]
 
         time.sleep(3)
 
@@ -27,7 +26,6 @@ def run_analysis(job_id: str):
             "energyLossCost": 142.0,
             "savingsPercent": 19,
             "savingsCost": 31.0,
-            "reportPhotoID": None,
             "suggestions": [
                 {
                     "suggestionID": str(uuid.uuid4()),
@@ -42,14 +40,21 @@ def run_analysis(job_id: str):
             ]
         }
 
-        task = session.query(LeakageTask).filter_by(taskID=task_data["id"]).first()
+        task = session.query(LeakageTask).filter_by(taskID=JOBS[job_id]["task"]).first()
         if task:
+            reportPhotoID = None
+            if len(task.RGBphotoIDs) != 0:
+                reportPhotoID = task.RGBphotoIDs[0]
+            elif len(task.thermalPhotoIDs) != 0:
+                reportPhotoID = task.thermalPhotoIDs[0]
+
+            task.state = "open"
             task.leakSeverity = analysis_result["leakSeverity"]
             task.energyLossValue = analysis_result["energyLossValue"]
             task.energyLossCost = analysis_result["energyLossCost"]
             task.savingsPercent = analysis_result["savingsPercent"]
             task.savingsCost = analysis_result["savingsCost"] 
-            task.reportPhotoID = analysis_result["reportPhotoID"] 
+            task.reportPhotoID = reportPhotoID
 
             for s in analysis_result["suggestions"]:
                 suggestion = Suggestion(taskID=task.taskID, **s) 
@@ -57,7 +62,6 @@ def run_analysis(job_id: str):
 
             session.commit()
 
-        JOBS[job_id]["report"] = analysis_result
         JOBS[job_id]["status"] = JobStatus.done
 
     except Exception as e:
