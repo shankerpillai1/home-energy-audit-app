@@ -2,6 +2,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.oauth2 import id_token
 from google.auth.transport import requests
+from config.server_config import SessionLocal
+from models.sqlalchemy_models import UserData
+from sqlalchemy import func
 
 # Import your updated db functions (UserData)
 from services import db  
@@ -59,6 +62,50 @@ async def login_user(data: LoginRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {e}")
+
+
+class ProfileUpdate(BaseModel):
+    userID: str
+    zip: str | None = None
+    ownership: str | None = None
+    electricCompany: str | None = None
+    budget: str | None = None
+    appliances: list[str] | None = None
+
+
+@app.post("/update_profile")
+async def update_profile(data: ProfileUpdate):
+    """
+    Update a user's profile with IntroPage data.
+    """
+    session = SessionLocal()
+    try:
+        user = session.query(UserData).filter_by(userID=data.userID).first()
+        if not user:
+            raise HTTPException(404, "User not found")
+
+        # Update fields only if present
+        if data.zip is not None:
+            user.zipCode = data.zip
+        if data.electricCompany is not None:
+            user.energyCompany = data.electricCompany
+        if data.budget is not None:
+            user.retrofitBudget = data.budget
+        if data.ownership is not None:
+            user.ownership = data.ownership
+        if data.appliances is not None:
+            user.appliances = data.appliances
+
+        user.updatedAt = func.current_timestamp()
+
+        session.commit()
+        return {"status": "profile updated", "userID": user.userID}
+
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Profile update failed: {e}")
+    finally:
+        session.close()
 
 
 @app.get("/")

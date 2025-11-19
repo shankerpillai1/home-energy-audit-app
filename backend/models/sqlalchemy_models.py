@@ -53,4 +53,24 @@ class Suggestion(Base):
     estimatedReduction = Column(String(64))
     lifetime = Column(String(64))
 
-Base.metadata.create_all(bind=engine)
+from sqlalchemy import TIMESTAMP, func
+
+class UserData(Base):
+    __tablename__ = "UserData"
+
+    userID = Column(String(64), primary_key=True)
+    zipCode = Column(String(16))
+    energyCompany = Column(String(255))
+    retrofitBudget = Column(String(64))
+    ownership = Column(String(32))
+    appliances = Column(JSON)
+
+    createdAt = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp()
+    )
+    updatedAt = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp()
+    )

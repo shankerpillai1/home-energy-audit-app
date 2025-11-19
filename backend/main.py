@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from login import app as login_app
 from server import app as leakage_app
+from models import sqlalchemy_models
+from models.sqlalchemy_models import Base
+from config.server_config import engine   
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Combined Home Energy API")
 

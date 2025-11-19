@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../services/settings_service.dart';
+import 'package:http/http.dart' as http;
 
 class IntroPage extends ConsumerStatefulWidget {
   const IntroPage({super.key});
@@ -99,6 +100,39 @@ class _IntroPageState extends ConsumerState<IntroPage> {
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
   }
 
+  Future<void> _sendToBackend() async {
+    final user = ref.read(userProvider);
+    final uid = user.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    final selectedApps = _appliances.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final payload = {
+      "userID": uid,
+      "zip": _zipCtrl.text.trim(),
+      "ownership": _ownership,
+      "electricCompany": _electricCtrl.text.trim(),
+      "budget": _budget,
+      "appliances": selectedApps,
+    };
+
+    final url = Uri.parse("http://10.0.2.2:8000/auth/update_profile");
+
+    try {
+      final resp = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+      print("Profile updated: ${resp.body}");
+    } catch (e) {
+      print("Failed to update profile: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -146,6 +180,7 @@ class _IntroPageState extends ConsumerState<IntroPage> {
                     } else {
                       // Save
                       await _saveProfile();
+                      await _sendToBackend();
 
                       // Mark intro completed if not yet
                       final user = ref.read(userProvider);

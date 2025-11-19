@@ -1,8 +1,10 @@
 from sqlalchemy import Column, String, Float, TIMESTAMP, func
 from sqlalchemy.exc import SQLAlchemyError
 from config.server_config import Base, engine, SessionLocal
+from models.sqlalchemy_models import UserData
 
 # ---------- SQLAlchemy UserData Model ----------
+'''
 class UserData(Base):
     __tablename__ = "UserData"
 
@@ -19,10 +21,11 @@ class UserData(Base):
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp()
     )
+'''
 
 
 # Create the table (if it doesn’t already exist)
-Base.metadata.create_all(bind=engine)
+#Base.metadata.create_all(bind=engine)
 
 
 # ---------- Database Utility Functions ----------
@@ -53,7 +56,7 @@ def create_user(user_id: str, zip_code: str = None,
             userID=user_id,
             zipCode=zip_code,
             energyCompany=energy_company,
-            suggestedBudget=suggested_budget
+            retrofitBudget=suggested_budget
         )
 
         session.add(new_user)

@@ -84,7 +84,7 @@ class UserNotifier extends StateNotifier<UserState> {
 
   Future<void> _loginToBackend(String idToken, String uid) async {
     try {
-      final uri = Uri.parse('http://10.0.2.2:8000/login');  // Emulator → FastAPI
+      final uri = Uri.parse('http://10.0.2.2:8000/auth/login');  // Emulator → FastAPI
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
