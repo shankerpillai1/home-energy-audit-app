@@ -47,6 +47,8 @@ class UserNotifier extends StateNotifier<UserState> {
     if (token == null) return;
 
     final uid = await _fetchEmailFromGoogle(token);
+    if (uid == null) return;
+    await _loginToBackend(token, uid);
     final completed = await _settings.readBool('introCompleted_$uid');
 
     state = UserState(
@@ -60,6 +62,8 @@ class UserNotifier extends StateNotifier<UserState> {
   /// Called after Google sign-in from the login page (we pass only the token).
   Future<void> setUser(String idToken) async {
     final uid = await _fetchEmailFromGoogle(idToken);
+    if (uid == null) return;
+    await _loginToBackend(idToken, uid);
     final completed = await _settings.readBool('introCompleted_$uid');
 
     state = UserState(
@@ -76,6 +80,24 @@ class UserNotifier extends StateNotifier<UserState> {
     if (uid == null || uid.isEmpty) return;
     await _settings.saveBool('introCompleted_$uid', true);
     state = state.copyWith(completedIntro: true);
+  }
+
+  Future<void> _loginToBackend(String idToken, String uid) async {
+    try {
+      final uri = Uri.parse('http://10.0.2.2:8000/login');  // Emulator → FastAPI
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'id_token': idToken,
+          'uid': uid,
+        }),
+      );
+
+      print('Backend /login => ${response.statusCode}: ${response.body}');
+    } catch (e) {
+      print('Error calling backend /login: $e');
+    }
   }
 
   /// Optional reset.

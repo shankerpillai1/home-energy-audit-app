@@ -33,3 +33,12 @@ CREATE TABLE Suggestion (
     estimatedReduction VARCHAR(255),
     lifetime VARCHAR(255)
 );
+
+CREATE TABLE UserData (
+    userID VARCHAR(64) PRIMARY KEY,
+    zipCode VARCHAR(16),
+    energyCompany VARCHAR(255),
+    suggestedBudget FLOAT,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
