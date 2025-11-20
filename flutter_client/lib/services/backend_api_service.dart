@@ -141,7 +141,7 @@ class BackendApiService {
     BackendConfig cfg, {
     int? overrideDetectedCount,
   }) async {
-    final endpoint = cfg.baseUri.resolve('/detect_leak'); // e.g., POST https://api/v1/leakage/jobs
+    final endpoint = cfg.baseUri.resolve('/leakage/detect_leak'); // e.g., POST https://api/v1/leakage/jobs
 
     // Serialize the entire task as JSON
     final taskJson = jsonEncode(task.toJson());
@@ -200,7 +200,7 @@ class BackendApiService {
         throw BackendApiException('Job $jobId timed out after ${cfg.maxWait.inSeconds}s');
       }
 
-      final endpoint = cfg.baseUri.resolve('/detect_leak/$jobId');
+      final endpoint = cfg.baseUri.resolve('/leakage/detect_leak/$jobId');
       final resp = await _getJson(endpoint, cfg);
       final status = (resp['status'] as String?)?.toLowerCase() ?? 'unknown';
 

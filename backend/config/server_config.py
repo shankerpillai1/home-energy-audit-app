@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import pymongo
 import gridfs
 
-LEAKAGE_TASK_DATABASE_URL = "mysql+pymysql://root:CS1980Capstone@localhost/leakage_tasks_database"
+LEAKAGE_TASK_DATABASE_URL = "mysql+pymysql://root:CS1980Capstone@localhost/home_energy_audit_app_database"
 MONGO_URL = "mongodb://localhost:27017/"
 MONGODB_NAME = "LeakageImages"
 

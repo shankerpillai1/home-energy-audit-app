@@ -13,9 +13,6 @@ from services.mock_analysis import run_analysis, JobStatus, JOBS
 #API
 app = FastAPI(title="Home Energy Audit API")
 
-UPLOAD_DIR = "uploaded_media"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 @app.post("/detect_leak")
 async def detect_leak(
     request: Request,
@@ -144,8 +141,6 @@ def poll_job(job_id: str):
             try:
                 grid_file = mongofs.get(ObjectId(task.reportPhotoID))
                 image_bytes = grid_file.read()
-
-                print(grid_file.filename)
 
                 b64_image = base64.b64encode(image_bytes).decode("utf-8")
 

@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS leakage_tasks_database;
-USE leakage_tasks_database;
+CREATE DATABASE IF NOT EXISTS home_energy_audit_app_database;
+USE home_energy_audit_app_database;
 
 CREATE TABLE LeakageTask (
     taskID VARCHAR(64) PRIMARY KEY,
@@ -38,6 +38,9 @@ CREATE TABLE UserData (
     userID VARCHAR(64) PRIMARY KEY,
     zipCode VARCHAR(16),
     energyCompany VARCHAR(255),
+    retrofitBudget VARCHAR(255),
+    ownership VARCHAR(100),
+    appliances JSON,
     suggestedBudget FLOAT,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
