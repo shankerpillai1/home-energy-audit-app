@@ -1,7 +1,7 @@
 CREATE DATABASE IF NOT EXISTS home_energy_audit_app_database;
 USE home_energy_audit_app_database;
 
-CREATE TABLE LeakageTask (
+CREATE TABLE IF NOT EXISTS LeakageTask (
     taskID VARCHAR(64) PRIMARY KEY,
     userID VARCHAR(64) NOT NULL,
     title VARCHAR(255),
@@ -23,7 +23,7 @@ CREATE TABLE LeakageTask (
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE Suggestion (
+CREATE TABLE IF NOT EXISTS Suggestion (
     suggestionID VARCHAR(64) PRIMARY KEY,
     taskID VARCHAR(64),
     title VARCHAR(255),
@@ -34,7 +34,7 @@ CREATE TABLE Suggestion (
     lifetime VARCHAR(255)
 );
 
-CREATE TABLE UserData (
+CREATE TABLE IF NOT EXISTS UserData (
     userID VARCHAR(64) PRIMARY KEY,
     zipCode VARCHAR(16),
     energyCompany VARCHAR(255),
