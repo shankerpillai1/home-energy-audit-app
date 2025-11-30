@@ -6,6 +6,7 @@ from config.sql_database_config import run_sql_script
 
 SQL_URL = "mysql+pymysql://root:CS1980Capstone@localhost/"
 SQL_DATABASE_NAME = "home_energy_audit_app_database"
+
 MONGO_URL = "mongodb://localhost:27017/"
 MONGODB_NAME = "LeakageImages"
 

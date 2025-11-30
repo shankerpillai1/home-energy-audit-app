@@ -4,11 +4,233 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 import '../../../models/leakage_task.dart';
 import '../../../providers/leakage_task_provider.dart';
 import '../../../providers/repository_providers.dart';
 import '../../../providers/user_provider.dart';
+
+class LeakageTaskListPage extends ConsumerStatefulWidget {
+  const LeakageTaskListPage({super.key});
+
+  @override
+  ConsumerState<LeakageTaskListPage> createState() => _LeakageTaskListPageState();
+}
+
+class _LeakageTaskListPageState extends ConsumerState<LeakageTaskListPage> {
+  bool _submitting = false;
+  BuildContext? _progressSheetContext;
+  
+  /// Show a dismissible bottom sheet with an indeterminate progress indicator.
+  void _showProgressSheet() {
+    _progressSheetContext = null;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: false,
+      isDismissible: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        _progressSheetContext = ctx;
+        return const _AnalyzingSheet();
+      },
+    ).whenComplete(() {
+      // When user swipes it down, we just clear the handle.
+      _progressSheetContext = null;
+    });
+  }
+
+  /// Close progress sheet if still shown.
+  void _closeProgressSheetIfAny() {
+    final c = _progressSheetContext;
+    if (c != null) {
+      // Try to pop only the sheet route.
+      Navigator.of(c).maybePop();
+      _progressSheetContext = null;
+    }
+  }
+
+  Future<void> _submitAll() async {
+    final tasks = ref.read(leakageTaskListProvider.notifier).state;
+    final pending = <LeakageTask>[];
+
+    for (final t in tasks) {
+      if (t.state == LeakageTaskState.draft) {
+        pending.add(t);
+      }
+    }
+
+    if (pending.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No draft tasks to submit')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    _showProgressSheet();
+
+    try {
+      for (final t in pending) {
+        final hasAnyImage = t.photoPaths.isNotEmpty;
+        if (hasAnyImage) {
+          ref
+            .read(leakageTaskListProvider.notifier)
+            .submitForAnalysis(t.id);
+        }
+      }
+
+      // On success: close the progress sheet and navigate to report.
+      _closeProgressSheetIfAny();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Submission Complete')),
+      );
+      context.go('/leakage/dashboard');
+    } catch (e) {
+      _closeProgressSheetIfAny();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Analysis failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    final tasks = ref.watch(leakageTaskListProvider)
+      .where((t) => t.state == LeakageTaskState.draft)
+      .toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leakage Tasks')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final id = const Uuid().v4();
+          await ref.read(leakageTaskListProvider.notifier).upsertTask(
+                LeakageTask(
+                  id: id,
+                  title: '',
+                  type: '',
+                  photoPaths: [],
+                  state: LeakageTaskState.draft,
+                ),
+              );
+
+          context.push('/leakage/task/$id');
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add Task'),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: ElevatedButton.icon(
+            onPressed: _submitting ? null : _submitAll,
+            icon: _submitting
+                ? const SizedBox(
+                    height: 16, width: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.cloud_upload),
+            label: Text(_submitting ? 'Analyzing...' : 'Analyze All'),
+          ),
+        ),
+      ),
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 16),
+
+          if (tasks.isEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('No tasks available.', style: Theme.of(context).textTheme.bodyLarge),
+              ),
+            )
+          else
+            Column(
+              children: tasks
+                  .map((dft) => _DraftListTile(
+                        taskId: dft.id,
+                        draft: dft,
+                      ))
+                  .toList(),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _DraftListTile extends ConsumerWidget {
+  final String taskId;
+  final LeakageTask draft;
+  const _DraftListTile({required this.taskId, required this.draft});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        leading: _DraftThumb(draft: draft),
+        title: Text(draft.title),
+        subtitle: Text('Images: ${draft.photoPaths.length}'),
+        trailing: const Icon(Icons.keyboard_arrow_up), // hint for slide-up detail
+        onTap: () {
+          context.push('/leakage/task/${draft.id}');
+        },
+      ),
+    );
+  }
+}
+
+class _DraftThumb extends ConsumerWidget {
+  final LeakageTask draft;
+  const _DraftThumb({required this.draft});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fs = ref.read(fileStorageServiceProvider);
+    final user = ref.read(userProvider);
+    final uid = (user.uid?.trim().isNotEmpty == true) ? user.uid!.trim() : 'local';
+
+    Future<String?> absOrNull(String? relOrAbs) async {
+      if (relOrAbs == null) return null;
+      return await fs.resolveModuleAbsolute(uid, 'leakage', relOrAbs);
+    }
+
+    return FutureBuilder<String?>(
+      future: (draft.photoPaths.isNotEmpty)
+        ? absOrNull(draft.photoPaths.first)
+        : Future.value(null),
+      builder: (context, snap) {
+        final path = snap.data;
+        if (path == null || !File(path).existsSync()) {
+          return const SizedBox(
+            width: 56,
+            height: 56,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
+              child: Icon(Icons.image_not_supported),
+            ),
+          );
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(File(path), width: 56, height: 56, fit: BoxFit.cover),
+        );
+      },
+    );
+  }
+}
 
 class LeakageTaskPage extends ConsumerStatefulWidget {
   final String taskId;
@@ -432,7 +654,7 @@ class _AnalyzingSheet extends StatelessWidget {
           Text('Analyzing your submission…', style: textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'You can swipe down to continue using the app. We will open the report when it is ready.',
+            'You can swipe down to continue using the app while analysis is completed.',
             style: textTheme.bodyMedium, textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),

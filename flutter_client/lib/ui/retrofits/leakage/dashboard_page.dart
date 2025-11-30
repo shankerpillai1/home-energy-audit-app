@@ -93,17 +93,7 @@ class LeakageDashboardPage extends ConsumerWidget {
               leading: const Icon(Icons.add),
               title: const Text('Start New Leak Test'),
               onTap: () {
-                final id = DateTime.now().microsecondsSinceEpoch.toString();
-                // Provide sensible defaults for better first-run UX.
-                notifier.upsertTask(
-                  LeakageTask(
-                    id: id,
-                    title: 'Untitled Task',
-                    type: 'window',
-                    state: LeakageTaskState.draft,
-                  ),
-                );
-                context.push('/leakage/task/$id');
+                context.push('/leakage/list');
               },
             ),
           ),

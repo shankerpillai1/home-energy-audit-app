@@ -4,7 +4,6 @@ def create_database_if_not_exists(mysql_root_url, db_name):
     engine = create_engine(mysql_root_url, execution_options={"autocommit": True})
     with engine.connect() as conn:
         conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}`"))
-    print(f"Database '{db_name}' ensured.")
 
 def run_sql_script(mysql_root_url, db_name, sql_file_path):
     

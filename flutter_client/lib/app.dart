@@ -62,6 +62,14 @@ class EnergyAuditApp extends ConsumerWidget {
             builder: (_, __) => const LeakageDashboardPage(),
           ),
           GoRoute(
+            path: '/leakage',
+            redirect: (_, __) => '/leakage/list',
+          ),
+          GoRoute(
+            path: '/leakage/list',
+            builder: (context, state) => const LeakageTaskListPage(),
+          ),
+          GoRoute(
             path: '/leakage/task/:id',
             builder: (context, state) {
               final taskId = state.pathParameters['id']!;
