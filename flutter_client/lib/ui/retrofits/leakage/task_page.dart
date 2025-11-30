@@ -247,6 +247,8 @@ class _Obs {
 
 class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
   final _titleCtrl = TextEditingController();
+  final _outsideTempCtrl = TextEditingController();
+  final _insideTempCtrl = TextEditingController();
   String _type = '';
   final List<_Obs> _obs = [];
   bool _saving = false;
@@ -265,6 +267,8 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
     final task = ref.read(leakageTaskListProvider.notifier).getById(widget.taskId);
     if (task != null) {
       _titleCtrl.text = task.title;
+      _outsideTempCtrl.text = (task.outsideTemp == null) ? '' : task.outsideTemp.toString();
+      _insideTempCtrl.text = (task.insideTemp == null) ? '' : task.insideTemp.toString();
       _type = task.type;
       final pp = task.photoPaths;
       if (pp.isNotEmpty) {
@@ -296,6 +300,8 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
       final task = (current ?? LeakageTask(title: '', type: ''))
           .copyWith( // keep status/result/decision/report if present
             title: _titleCtrl.text.trim(),
+            outsideTemp: _outsideTempCtrl.text.trim(),
+            insideTemp: _insideTempCtrl.text.trim(),
             type: _type,
             photoPaths: photos,
           );
@@ -477,6 +483,16 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
             TextField(
               controller: _titleCtrl,
               decoration: const InputDecoration(labelText: 'Task Title'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _outsideTempCtrl,
+              decoration: const InputDecoration(labelText: 'Outside Temperature'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _insideTempCtrl,
+              decoration: const InputDecoration(labelText: 'Inside Temperature'),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
