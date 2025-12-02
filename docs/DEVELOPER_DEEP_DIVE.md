@@ -54,6 +54,25 @@ lib/
    └─ router_refresh.dart
 ```
 
+## Directory Tree (`backend/`)
+
+```
+lib/
+├─ main.py
+├─ APIs/
+│  ├─ leakage_task_api.py
+│  └─ login_api.py
+├─ config/
+│  ├─ server_config.py
+│  ├─ sql_database_config.py
+│  └─ home_energy_audit_app_database.sql
+├─ models/
+│  └─ sqlalchemy_models.py
+└─ services/
+   ├─ db.py
+   └─ mock_analysis.py
+```
+
 ## To-Do & Reminders System
 
 The interactive To-Do list on the Home tab is managed by a dedicated provider and a simple data model, ensuring persistence and reactivity.
@@ -79,31 +98,24 @@ The interactive To-Do list on the Home tab is managed by a dedicated provider an
   "state": "open",
   "decision": "planned",
   "closedResult": null,
+  "insideTemp": 71,
+  "outsideTemp": 35,
   "report": {
     "energyLossCost": "$142/year",
     "energyLossValue": "15.8 kWh/mo",
     "leakSeverity": "Moderate",
     "savingsCost": "$31/year",
     "savingsPercent": "19% reduction",
-    "points": [
+    "imagePath": "media/824389a5/obs0_thermal.jpg",
+    "thumbPath": "media/824389a5/obs0_thermal.jpg",
+    "suggestions": [
       {
-        "title": "Detected Leak #1",
+        "title": "General Weatherstripping",
         "subtitle": "Location: N/A\nGap size: N/A\nHeat loss: N/A",
-        "imagePath": "media/824389a5/obs0_thermal.jpg",
-        "thumbPath": "media/824389a5/obs0_thermal.jpg",
-        "markerX": 0.22,
-        "markerY": 0.30,
-        "markerW": 0.18,
-        "markerH": 0.20,
-        "suggestions": [
-          {
-            "title": "General Weatherstripping",
-            "costRange": "$10–20",
-            "difficulty": "Easy",
-            "lifetime": "3–5 years",
-            "estimatedReduction": "50–70%"
-          }
-        ]
+        "costRange": "$10–20",
+        "difficulty": "Easy",
+        "lifetime": "3–5 years",
+        "estimatedReduction": "50–70%"
       }
     ]
   }
@@ -208,7 +220,7 @@ GoRoute(path: '/leakage/task/:id', builder: (ctx, st) => LeakageTaskPage(taskId:
 GoRoute(path: '/leakage/report/:id', builder: (ctx, st) => LeakageReportPage(taskId: st.pathParameters['id']!)),
 ```
 
-## File Storage Service (key API)
+## Local File Storage Service (key API)
 
 ```dart
 // services/file_storage_service.dart (API surface)
@@ -222,15 +234,6 @@ Future<void> deleteTaskMedia(String uid, String module, String taskId);
 ```
 
 *Media paths saved in `LeakageTask.photoPaths` are module‑relative. UI resolves with `resolveModuleAbsolute()`.*
-
-## Mock Backend → Real HTTP Swap
-
-1.  Keep the `LeakReport` return type stable.
-2.  Replace the body of `BackendApiService.analyzeLeakageTask()` with:
-    *   Upload media referenced by `task.photoPaths`.
-    *   POST a job request; poll for results or receive a webhook.
-    *   Map the backend payload into `LeakReport`/`LeakReportPoint`/`LeakSuggestion`.
-    *   Handle partial failures with retries; store a job status field on the task if needed (e.g., `analysisStatus: queued|running|done|error`).
 
 ## Bottom Sheets UX (Patterns)
 
@@ -255,7 +258,6 @@ Future<void> deleteTaskMedia(String uid, String module, String taskId);
 
 ## TODO Backlog (Dev)
 
-*   [ ] Persist full Intro answers (JSON) and surface in Account → Profile.
 *   [ ] To‑Do list model + provider + UI; hook from Report suggestions.
 *   [ ] iOS entitlements and storage/camera path parity.
 *   [ ] Module template generator (Mason or script) for new retrofits.

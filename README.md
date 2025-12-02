@@ -1,7 +1,7 @@
 # Home Energy Audit (Flutter)
 
 ## Project Overview
-wiki: [https://app.devin.ai/wiki/Chisato243/home-energy-audit-app](https://deepwiki.com/Chisato243/home-energy-audit-app)
+frontend wiki: [https://app.devin.ai/wiki/Chisato243/home-energy-audit-app](https://deepwiki.com/Chisato243/home-energy-audit-app)
 
 The Home Energy Audit app helps households find and act on energy‑saving opportunities with a clean, guided experience. It ships as a Flutter app (Android first) and uses a modular design so new retrofit domains (e.g., thermostat, appliances) can be added without touching core flows.
 
@@ -15,7 +15,7 @@ The Home Energy Audit app helps households find and act on energy‑saving oppor
 
 ### Non-Goals
 
-*   Running production ML models on‑device or operating a real cloud backend (currently mocked analysis service).
+*   Running production ML models on‑device or operating a real cloud backend (currently mocked analysis service on local server that is ran from backend).
 *   Multi‑tenant user management or cross‑device sync (future work).
 *   Full task orchestration for all retrofit domains (only Leakage is functional now; others are placeholders).
 
@@ -62,8 +62,14 @@ The Home Energy Audit app helps households find and act on energy‑saving oppor
 3.  (Android only) Ensure an emulator or real device is connected: `flutter devices`.
 4.  Optional for desktop debugging of JSON: the app can mirror user data into your workspace (see **Debugging & Dev Utilities → Workspace Mirroring**).
 
-### Build & Launch
+### Build & Launch Server 
 
+*   **Navigate to** \backend
+*   **Run:** `python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000`
+
+### Build & Launch App
+
+*   **Navigate to** \flutter_client
 *   **Run:** `flutter run`
 *   **Hot reload:** press `r` in the terminal (or use IDE action)
 *   **Clean build:** `flutter clean && flutter pub get`
@@ -145,7 +151,7 @@ Grid of retrofit categories. Leakage, LED, and Thermostat modules are enabled fo
 *   **Repositories:** abstract persistence; current impl is file-backed.
 *   **Services:** low-level helpers (auth, settings, file I/O, mock backend).
 
-### Directory Layout
+### App Directory Layout
 
 See `lib/` tree in the repo. Key areas:
 *   `models/`: `leakage_task.dart`, `todo_item.dart` define the core data shapes.
@@ -157,8 +163,7 @@ See `lib/` tree in the repo. Key areas:
 ### Data Model & Schemas
 
 *   **`LeakageTask`**: `id`, `title`, `type`, `photoPaths` (module-relative), `createdAt`, `state` = `draft|open|closed`, optional `decision` & `closedResult`, and optional `report`.
-*   **`LeakReport`**: energy/savings/severity summary plus `points[]`.
-*   **`LeakReportPoint`**: `title`, `subtitle`, `(thumb|image)` module-relative paths, optional `marker` rect (x,y,w,h in 0..1), and `suggestions[]`.
+*   **`LeakReport`**: energy/savings/severity summary plus `suggestions[]`.
 
 ### State Management (Riverpod)
 
@@ -226,14 +231,13 @@ See `lib/` tree in the repo. Key areas:
 *   “Add Observation” and Remove per observation.
 *   **Save Locally** and **Submit & Analyze** fixed at bottom.
 
-### Report Page (Points, Markers, Suggestions)
+### Report Page (Suggestions)
 
 *   Header: task title + Modify Submission button, then three compact summary cards (Loss / Severity / Savings).
-*   For each point: list tile with square thumbnail; tap to expand a full image with overlay rectangle (marker) and suggested fixes.
 *   Button placeholder for “Add to To‑Do”.
 *   State chips to toggle Draft / Open / Closed.
 
-### Submit & Analyze (Mock Backend)
+### Submit & Analyze (Backend)
 
 *   `BackendApiService.analyzeLeakageTask(task, detectedCount)` generates a synthetic report using user-uploaded images (prefers thermal when present).
 *   The provider writes `report` back to the task and persists it via repository.
@@ -282,18 +286,16 @@ See `lib/` tree in the repo. Key areas:
 
 ### Near-Term
 
-*   Persist Intro answers as a first-class profile and allow editing in Account.
 *   iOS build parity (camera/storage permissions, testing).
 *   Connect Report suggestions to the To-Do list.
 
 ### Mid-Term
 
-*   Real backend integration for Leakage analysis (HTTP + upload queue, retries).
 *   Additional modules: AC, Washer.
 
 ### Long-Term
 
-*   Cloud sync, multi-device user profiles.
+*   Work in Progress - Cloud sync, multi-device user profiles.
 *   In-app education content and richer Assistant flows.
 *   Telemetry (opt‑in) to improve recommendations.
 
@@ -318,12 +320,13 @@ See `lib/` tree in the repo. Key areas:
 *   **Observation:** a pair of images (RGB, Thermal) within a task.
 *   **Bucket:** UI grouping by task state (Draft/Open/Closed).
 *   **Module:** a retrofit domain (Leakage, LED, Thermostat, ...).
-*   **Report / Point:** analysis output; each point references an image region and suggestions.
+*   **Report:** analysis output and suggestions.
 
 ---
 
 ## Changelog
 
+*   **2025-09  -  2025-12:** Backend implemented to store leakage tasks in databases, run mock analysis, and handle login through google auth service.
 *   **2025-08:** Leakage v1 with draft/open/closed lifecycle, mock backend, per-task JSON, bottom-sheet lists, and report UI.
 *   **2025-07:** Bottom tabs, Assistant integration, initial auth + intro scaffold.
 *   **2025-06:** Project bootstrapped; theme + routing skeleton.
