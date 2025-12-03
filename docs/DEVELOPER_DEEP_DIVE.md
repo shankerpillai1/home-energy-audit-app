@@ -248,6 +248,10 @@ Future<void> deleteTaskMedia(String uid, String module, String taskId);
 *   **`shared_preferences`**: For simple, persistent key-value storage (used for To-Do list and user settings).
 *   **`intl`**: For date and number formatting, ensuring consistent localization (e.g., displaying due dates in `home_tab`).
 *   **`uuid`**: For generating unique IDs for new data models like `TodoItem`.
+*   **`sqlalchemy`**: For mapping data structures between MySQL database and task jsons.
+*   **`pymongo`**: For Python interfacing with MongoDB.
+*   **`gridfs`**: For chunking images such that they can be stored in MongoDB database.
+*   **`fastapi`**: For servers API methods.
 
 ## Troubleshooting
 

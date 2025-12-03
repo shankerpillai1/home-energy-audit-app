@@ -54,6 +54,9 @@ The Home Energy Audit app helps households find and act on energy‑saving oppor
 *   Flutter 3.x (stable channel recommended)
 *   Android SDK with a device or emulator; iOS build requires Xcode (optional for now)
 *   Dart/Flutter extensions for your IDE (VS Code or Android Studio)
+*   MySQL Workbench Installed and Setup
+*   MongoDB Compass Installed and Setup
+*   Update MONGO_URL and SQL_URL in backend/config/server_config.py to match local setup
 
 ### Setup
 
@@ -239,9 +242,10 @@ See `lib/` tree in the repo. Key areas:
 
 ### Submit & Analyze (Backend)
 
-*   `BackendApiService.analyzeLeakageTask(task, detectedCount)` generates a synthetic report using user-uploaded images (prefers thermal when present).
-*   The provider writes `report` back to the task and persists it via repository.
-
+*   The app via `BackendApiService.analyzeLeakageTaskHttp(task)` uses local server API POST to submit task for analysis
+*   The local server then stores the leakage task data in MySQL database and images in MongoDB database
+*   The local server calls `mock_analysis.py` to generate a fake report that is uploaded to MySQL database
+*   The app simultaneously makes API GET requests to the server until the server has completed processing and returns report and report image for display on the report page
 ---
 
 ## Extending the App (Adding a Retrofit)
