@@ -59,7 +59,10 @@ This file defines:
 - The `SessionLocal` factory
 - The declarative `Base` used by all models
 
-On server startup, the SQL schema is automatically created using:
+### MySQL Setup
+*   Once MySQL Workbench is installed create a new connection that can be named anything.
+*   Obtain this connections connection string by right clicking on it and update SQL_URL in backend/config/server_config.py to match it. I will likely be of the format mysql+pymysql://root:password@localhost where the password is the one you created for the connection.
+*   On server startup, the SQL schema is automatically created using:
 
 ```python
 run_sql_script(SQL_URL, SQL_DATABASE_NAME, "config/home_energy_audit_app_database.sql")
