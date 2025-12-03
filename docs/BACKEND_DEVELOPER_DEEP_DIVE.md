@@ -39,8 +39,8 @@ lib/
 
 ## Server Setup
 
-*   MySQL Workbench Installed
-*   MongoDB Compass Installed
+*   Install MySQL Workbench
+*   Install MongoDB Compass
 *   Update MONGO_URL and SQL_URL in backend/config/server_config.py to match local setup
 
 ### Build & Launch Server 
@@ -67,4 +67,9 @@ lib/
 *   Once app is running create leakage task and submit it for analysis. You should see two new collections called fs.chunks and fs.files if this database is working properly.
 
 ## GoogleAuth Setup
+
+
+
+
+
 
