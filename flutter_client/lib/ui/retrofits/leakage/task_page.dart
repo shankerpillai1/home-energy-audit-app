@@ -72,11 +72,27 @@ class _LeakageTaskListPageState extends ConsumerState<LeakageTaskListPage> {
 
     try {
       for (final t in pending) {
-        final hasAnyImage = t.photoPaths.isNotEmpty;
-        if (hasAnyImage) {
-          ref
-            .read(leakageTaskListProvider.notifier)
-            .submitForAnalysis(t.id);
+        String taskTitle = t.title;
+        final hasTemps = (t.outsideTemp != null) && (t.insideTemp != null);
+        if (!hasTemps) {
+          ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$taskTitle is missing one or more temperature field required for analysis.')),
+          );
+        }
+
+        else
+        {
+          final hasAnyImage = t.photoPaths.isNotEmpty;
+          if (hasAnyImage) {
+            ref
+              .read(leakageTaskListProvider.notifier)
+              .submitForAnalysis(t.id);
+          }
+          else{
+            ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Please add at least one image to $taskTitle for analysis.')),
+            );
+          }
         }
       }
 
@@ -289,6 +305,19 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
+      final hasAnyImage = _obs.any((o) => o.rgbRel != null || o.thermalRel != null);
+      if (!hasAnyImage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please add at least one image before submitting for analysis')),
+        );
+      }
+      final hasTemps = (_outsideTempCtrl.text != "") && (_insideTempCtrl.text != "");
+      if (!hasTemps) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing one or more temperature field. Please add before submitting for analysis')),
+        );
+      }  
+
       final photos = <String>[];
       for (final o in _obs) {
         if (o.rgbRel != null) photos.add(o.rgbRel!);
@@ -354,6 +383,14 @@ class _LeakageTaskPageState extends ConsumerState<LeakageTaskPage> {
       );
       return;
     }
+    final hasTemps = (_outsideTempCtrl.text != "") && (_insideTempCtrl.text != "");
+    if (!hasTemps) {
+      ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Missing one or more temperature field')),
+      );
+      return;
+    }
+    
 
     setState(() => _submitting = true);
     _showProgressSheet();
