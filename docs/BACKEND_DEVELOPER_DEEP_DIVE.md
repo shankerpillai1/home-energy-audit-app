@@ -45,8 +45,7 @@ lib/
 
 ### Build & Launch Server 
 
-*   **Navigate to** \backend
-*   **Run:** `python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000`
+*   **Run:** `python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000`
 
 ## MySQL Database
 
