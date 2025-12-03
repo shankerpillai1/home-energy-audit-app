@@ -2,12 +2,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from config.server_config import SessionLocal
-from models.sqlalchemy_models import UserData
+from backend.config.server_config import SessionLocal
+from backend.models.sqlalchemy_models import UserData
 from sqlalchemy import func
+from sqlalchemy.inspection import inspect
 
 # Import your updated db functions (UserData)
-from services import db  
+from ..services import db  
 
 app = FastAPI(title="User Login Service")
 
@@ -75,30 +76,26 @@ class ProfileUpdate(BaseModel):
 
 @app.post("/update_profile")
 async def update_profile(data: ProfileUpdate):
-    """
-    Update a user's profile with IntroPage data.
-    """
     session = SessionLocal()
     try:
         user = session.query(UserData).filter_by(userID=data.userID).first()
         if not user:
             raise HTTPException(404, "User not found")
 
-        # Update fields only if present
-        if data.zip is not None:
-            user.zipCode = data.zip
-        if data.electricCompany is not None:
-            user.energyCompany = data.electricCompany
-        if data.budget is not None:
-            user.retrofitBudget = data.budget
-        if data.ownership is not None:
-            user.ownership = data.ownership
-        if data.appliances is not None:
-            user.appliances = data.appliances
+        update_fields = data.dict(exclude_unset=True)
+
+        # REFLECTION HERE
+        valid_columns = {
+            col.key for col in inspect(UserData).mapper.column_attrs
+        }
+
+        for field, value in update_fields.items():
+            if field in valid_columns and value is not None:
+                setattr(user, field, value)
 
         user.updatedAt = func.current_timestamp()
-
         session.commit()
+
         return {"status": "profile updated", "userID": user.userID}
 
     except Exception as e:
@@ -106,7 +103,6 @@ async def update_profile(data: ProfileUpdate):
         raise HTTPException(500, f"Profile update failed: {e}")
     finally:
         session.close()
-
 
 @app.get("/")
 def root():

@@ -1,27 +1,9 @@
 from sqlalchemy import Column, String, Float, TIMESTAMP, func
 from sqlalchemy.exc import SQLAlchemyError
-from config.server_config import Base, engine, SessionLocal
-from models.sqlalchemy_models import UserData
+from backend.config.server_config import Base, engine, SessionLocal
+from backend.models.sqlalchemy_models import UserData
+from backend.services.reflections_utils import model_to_dict
 
-# ---------- SQLAlchemy UserData Model ----------
-'''
-class UserData(Base):
-    __tablename__ = "UserData"
-
-    userID = Column(String(64), primary_key=True)  # matches SQL schema
-    zipCode = Column(String(16))
-    energyCompany = Column(String(255))
-    suggestedBudget = Column(Float)
-
-    createdAt = Column(
-        TIMESTAMP, server_default=func.current_timestamp()
-    )
-    updatedAt = Column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp()
-    )
-'''
 
 
 # Create the table (if it doesn’t already exist)
@@ -30,13 +12,10 @@ class UserData(Base):
 
 # ---------- Database Utility Functions ----------
 def get_user(user_id: str):
-    """Retrieve user profile by userID."""
     session = SessionLocal()
     try:
-        return session.query(UserData).filter_by(userID=user_id).first()
-    except SQLAlchemyError as e:
-        print(f"[DB] get_user error: {e}")
-        return None
+        user = session.query(UserData).filter_by(userID=user_id).first()
+        return model_to_dict(user) if user else None
     finally:
         session.close()
 
@@ -44,7 +23,8 @@ def get_user(user_id: str):
 def create_user(user_id: str, zip_code: str = None,
                 energy_company: str = None, suggested_budget: float = None):
     """
-    Insert a new user profile only if it doesn't already exist.
+    Reflection-based safe user creation.
+    Auto-filters only valid database columns.
     """
     session = SessionLocal()
     try:
@@ -52,12 +32,26 @@ def create_user(user_id: str, zip_code: str = None,
         if existing:
             return False  # user already exists
 
-        new_user = UserData(
-            userID=user_id,
-            zipCode=zip_code,
-            energyCompany=energy_company,
-            retrofitBudget=suggested_budget
-        )
+        
+        payload = {
+            "userID": user_id,
+            "zipCode": zip_code,
+            "energyCompany": energy_company,
+            "retrofitBudget": suggested_budget
+        }
+
+        
+        valid_columns = {
+            col.key for col in inspect(UserData).mapper.column_attrs
+        }
+
+        
+        filtered_payload = {
+            k: v for k, v in payload.items()
+            if k in valid_columns and v is not None
+        }
+
+        new_user = UserData(**filtered_payload)
 
         session.add(new_user)
         session.commit()

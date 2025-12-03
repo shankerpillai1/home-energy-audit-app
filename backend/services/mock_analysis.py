@@ -2,8 +2,8 @@ import time
 import random
 import uuid
 
-from config.server_config import SessionLocal
-from models.sqlalchemy_models import LeakageTask, Suggestion
+from backend.config.server_config import SessionLocal
+from backend.models.sqlalchemy_models import LeakageTask, Suggestion
 
 JOBS = {}
 

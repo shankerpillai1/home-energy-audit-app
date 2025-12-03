@@ -6,9 +6,9 @@ import uuid
 from bson import ObjectId
 import base64
 
-from config.server_config import SessionLocal, mongofs
-from models.sqlalchemy_models import LeakageTask, Suggestion
-from services.mock_analysis import run_analysis, JobStatus, JOBS
+from backend.config.server_config import SessionLocal, mongofs
+from backend.models.sqlalchemy_models import LeakageTask, Suggestion
+from backend.services.mock_analysis import run_analysis, JobStatus, JOBS
 
 #API
 app = FastAPI(title="Home Energy Audit API")

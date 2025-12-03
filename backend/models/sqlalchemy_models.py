@@ -1,7 +1,7 @@
 import enum
 from sqlalchemy import Column, String, Float, Enum, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from config.server_config import Base, engine
+from backend.config.server_config import Base, engine
 
 class TaskType(str, enum.Enum):
     window = "window"

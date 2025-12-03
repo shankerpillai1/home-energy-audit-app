@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from APIs.login_api import app as login_app
-from APIs.leakage_task_api import app as leakage_app
-from models.sqlalchemy_models import Base
-from config.server_config import engine   
+from backend.APIs.login_api import app as login_app
+from backend.APIs.leakage_task_api import app as leakage_app
+from backend.models.sqlalchemy_models import Base
+from backend.config.server_config import engine   
 
 Base.metadata.create_all(bind=engine)
 
