@@ -49,6 +49,73 @@ lib/
 
 ## MySQL Database
 
+The MySQL database serves as the **primary structured data store** for the Home Energy Audit app. It stores all persistent application data related to users, leakage detection tasks, and future tasks/data. The database is initialized and accessed using **SQLAlchemy ORM**, which provides a Python-based abstraction over raw SQL.
+
+All database configuration and initialization is handled in: backend/config/server_config.py
+This file defines:
+- The MySQL connection URL (`SQL_URL`)
+- The database name (`SQL_DATABASE_NAME`)
+- The SQLAlchemy `engine`
+- The `SessionLocal` factory
+- The declarative `Base` used by all models
+
+On server startup, the SQL schema is automatically created using:
+
+```python
+run_sql_script(SQL_URL, SQL_DATABASE_NAME, "config/home_energy_audit_app_database.sql")
+```
+
+#### Database Tables & Data Models
+
+The database consists of two core tables:
+
+---
+
+##### 1. `UserData` — User Profiles
+
+Stores user-specific information collected during onboarding and profile updates.
+
+**Table Purpose:**
+- Stores profile information tied to a unique `userID`
+- Updated through the `/update_profile` endpoint
+- Created automatically on first login through `/login`
+
+**Key Columns:**
+- `userID` (Primary Key)
+- `zipCode`
+- `energyCompany`
+- `retrofitBudget`
+- `ownership`
+- `appliances` (JSON)
+- `createdAt`, `updatedAt` (Automatic timestamps)
+
+##### 2. `LeakageTask`
+
+Stores all leakage detection job submissions and related data fields
+
+**Table Purpose:**
+- Linked to a LeakageTask via taskID
+- Stores recommended fix information and energy reduction estimates
+
+**SQLAlchemy Model:**
+```python
+class LeakageTask(Base):
+    __tablename__ = "LeakageTask"
+
+    taskID = Column(String(64), primary_key=True)
+    userID = Column(String(64))
+    title = Column(String(255))
+    type = Column(Enum(TaskType))
+    state = Column(Enum(TaskState))
+    decision = Column(Enum(TaskDecision), default=TaskDecision.no_decision, nullable=False)
+    insideTemp = Column(Float)
+    outsideTemp = Column(Float)
+    RGBphotoIDs = Column(JSON)
+    thermalPhotoIDs = Column(JSON)
+    reportPhotoID = Column(String(64))
+
+    suggestions = relationship("Suggestion", backref="task", cascade="all, delete-orphan")
+```
 
 
 
@@ -66,7 +133,7 @@ lib/
 *   Create database on MongoDB Compass within this connection named LeakageImages
 *   Once app is running create leakage task and submit it for analysis. You should see two new collections called fs.chunks and fs.files if this database is working properly.
 
-## GoogleAuth Setup
+
 
 
 
