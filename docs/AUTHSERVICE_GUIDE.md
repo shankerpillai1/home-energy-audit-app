@@ -1,5 +1,19 @@
 # Authentication Service Layer Documentation
 
+## Prerequisite 
+
+All developers must be added as Android Clients to the Google Cloud Auth Platform in order to access Google Auth and login to the App. To add a user, go to APIs and Services -> Google Auth Platform -> Clients
+
+Link- https://console.cloud.google.com/auth/clients?project=homeauditapp&supportedpurview=project
+
+To be added as an Android Client, you must provide your machine's SHA-1 fingerprint. This can be accessed using the following command:
+
+`keytool -list -v -keystore C:\Users\{User}\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android`
+
+Replace {User} with personal name in path
+
+Please contact the project administrators for access to the Google Cloud Auth Platform.
+
 ## Purpose and Scope
 
 The Authentication Service Layer provides identity verification and cross-device session continuity for the Home Energy Audit application. Unlike the development-focused local AuthService used in earlier prototypes, this implementation integrates directly with Google Identity Services to provide a lightweight, secure, token-based authentication mechanism without maintaining any credential storage or user registry internally.
